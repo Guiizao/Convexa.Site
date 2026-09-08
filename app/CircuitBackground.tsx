@@ -5,17 +5,22 @@ import { useEffect, useRef } from "react";
 type Point = { x: number; y: number };
 type Trace = {
   points: Point[];
+  path: Path2D;
   length: number;
-  pulseOffset: number;
+  animated: boolean;
+  phase: number;
   speed: number;
 };
 
 const GREEN = "54, 224, 161";
 
+const STREAK = 54;
+const REST = 260;
+
 /**
  * Fundo decorativo: trilhas ortogonais estilo placa de circuito, com um
- * pulso de luz "cobrinha" percorrendo algumas delas. Puramente visual —
- * aria-hidden, sem interação de teclado/leitor de tela.
+ * risco de luz percorrendo algumas delas. Puramente visual — aria-hidden,
+ * sem interação de teclado/leitor de tela.
  */
 export default function CircuitBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -37,7 +42,9 @@ export default function CircuitBackground() {
     let dpr = 1;
     let nodes: Point[] = [];
     let traces: Trace[] = [];
+    let lit: Trace[] = [];
     let raf = 0;
+    let running = false;
     let resizeTimer = 0;
     const mouse = { x: -9999, y: -9999, active: false };
 
@@ -73,17 +80,42 @@ export default function CircuitBackground() {
             const length =
               Math.hypot(bend.x - p.x, bend.y - p.y) +
               Math.hypot(n.x - bend.x, n.y - bend.y);
-            if (length === 0) continue;
+            if (length < 1) continue;
+
+            const path = new Path2D();
+            path.moveTo(p.x, p.y);
+            path.lineTo(bend.x, bend.y);
+            path.lineTo(n.x, n.y);
+
             built.push({
               points,
+              path,
               length,
-              pulseOffset: Math.random(),
-              speed: 0.00012 + Math.random() * 0.00018,
+              animated: false,
+              phase: Math.random(),
+              // px por milissegundo — independente do comprimento da trilha,
+              // então o risco corre na mesma velocidade em todas elas.
+              speed: 0.075 + Math.random() * 0.075,
             });
           }
         }
       }
+
       traces = built;
+
+      // Sorteia as trilhas acesas em vez de pegar as primeiras da lista: como
+      // a lista é montada linha por linha, `slice(0, n)` deixava a animação
+      // toda amontoada no canto superior esquerdo.
+      const indices = built.map((_, i) => i);
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      const howMany = Math.min(built.length, width < 700 ? 12 : 22);
+      lit = indices.slice(0, howMany).map((i) => {
+        built[i].animated = true;
+        return built[i];
+      });
     }
 
     function resize() {
@@ -96,16 +128,16 @@ export default function CircuitBackground() {
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       buildGrid();
+      if (reduceMotion) draw(0);
     }
 
-    function pointAlong(trace: Trace, t: number): Point {
-      let remaining = Math.max(0, Math.min(1, t)) * trace.length;
+    function pointAlong(trace: Trace, distance: number): Point {
+      let remaining = Math.max(0, Math.min(trace.length, distance));
       for (let i = 0; i < trace.points.length - 1; i++) {
         const a = trace.points[i];
         const b = trace.points[i + 1];
         const segLen = Math.hypot(b.x - a.x, b.y - a.y);
-        const isLast = i === trace.points.length - 2;
-        if (remaining <= segLen || isLast) {
+        if (remaining <= segLen || i === trace.points.length - 2) {
           const ratio = segLen === 0 ? 0 : Math.min(1, remaining / segLen);
           return { x: a.x + (b.x - a.x) * ratio, y: a.y + (b.y - a.y) * ratio };
         }
@@ -117,16 +149,9 @@ export default function CircuitBackground() {
     function draw(time: number) {
       ctx.clearRect(0, 0, width, height);
 
-      for (const trace of traces) {
-        ctx.beginPath();
-        ctx.moveTo(trace.points[0].x, trace.points[0].y);
-        for (let i = 1; i < trace.points.length; i++) {
-          ctx.lineTo(trace.points[i].x, trace.points[i].y);
-        }
-        ctx.strokeStyle = `rgba(${GREEN}, 0.08)`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
+      ctx.strokeStyle = `rgba(${GREEN}, 0.075)`;
+      ctx.lineWidth = 1;
+      for (const trace of traces) ctx.stroke(trace.path);
 
       for (const n of nodes) {
         let alpha = 0.12;
@@ -141,22 +166,55 @@ export default function CircuitBackground() {
       }
 
       if (!reduceMotion) {
-        const activeTraces = traces.slice(0, Math.min(traces.length, 28));
-        for (const trace of activeTraces) {
-          const t = (time * trace.speed + trace.pulseOffset) % 1;
-          for (let k = 0; k < 6; k++) {
-            const tt = t - k * 0.012;
-            if (tt < 0) continue;
-            const p = pointAlong(trace, tt);
-            const a = (1 - k / 6) * 0.85;
+        ctx.save();
+        ctx.lineCap = "round";
+
+        for (const trace of lit) {
+          const cycle = trace.length + STREAK + REST;
+          const travelled = (time * trace.speed + trace.phase * cycle) % cycle;
+
+          // Um único traço do padrão fica visível por vez: o "gap" é o ciclo
+          // inteiro. Deslocar o offset arrasta esse traço ao longo do caminho,
+          // que é o que faz a luz correr pelo fio em vez de piscar parada.
+          ctx.setLineDash([STREAK, cycle]);
+          ctx.lineDashOffset = STREAK - travelled;
+
+          ctx.shadowColor = `rgba(${GREEN}, 0.85)`;
+          ctx.shadowBlur = 14;
+          ctx.strokeStyle = `rgba(${GREEN}, 0.5)`;
+          ctx.lineWidth = 2.6;
+          ctx.stroke(trace.path);
+
+          ctx.shadowBlur = 6;
+          ctx.strokeStyle = `rgba(${GREEN}, 0.95)`;
+          ctx.lineWidth = 1.3;
+          ctx.stroke(trace.path);
+
+          const headAt = travelled - STREAK;
+          if (headAt >= 0 && headAt <= trace.length) {
+            const head = pointAlong(trace, headAt);
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = `rgba(${GREEN}, 1)`;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, 2.4 - k * 0.25, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${GREEN}, ${a})`;
+            ctx.arc(head.x, head.y, 2.1, 0, Math.PI * 2);
             ctx.fill();
           }
         }
+
+        ctx.restore();
         raf = requestAnimationFrame(draw);
       }
+    }
+
+    function start() {
+      if (reduceMotion || running) return;
+      running = true;
+      raf = requestAnimationFrame(draw);
+    }
+
+    function stop() {
+      running = false;
+      cancelAnimationFrame(raf);
     }
 
     const onResize = () => {
@@ -172,12 +230,8 @@ export default function CircuitBackground() {
       mouse.active = false;
     };
     const onVisibility = () => {
-      if (reduceMotion) return;
-      if (document.hidden) {
-        cancelAnimationFrame(raf);
-      } else {
-        raf = requestAnimationFrame(draw);
-      }
+      if (document.hidden) stop();
+      else start();
     };
 
     resize();
@@ -188,14 +242,10 @@ export default function CircuitBackground() {
       window.addEventListener("mouseleave", onMouseLeave);
     }
 
-    if (reduceMotion) {
-      draw(0);
-    } else {
-      raf = requestAnimationFrame(draw);
-    }
+    start();
 
     return () => {
-      cancelAnimationFrame(raf);
+      stop();
       window.clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);

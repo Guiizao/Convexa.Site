@@ -1,100 +1,96 @@
-# vinext-starter
+# Convexa — site de apresentação
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Site institucional do Convexa: a página que o dono de barbearia ou pet shop vê
+antes de virar cliente. **Não é o painel** — o painel administrativo é outro
+projeto (`convexa.flutter`).
 
-## Prerequisites
+O objetivo aqui é um só: levar o visitante ao WhatsApp.
 
-- Node.js `>=22.13.0`
+---
 
-## Quick Start
+## Rodar
+
+Precisa de **Node 22.13 ou mais novo**. Confira com `node -v`.
 
 ```bash
 npm install
 npm run dev
+```
+
+Abre em `http://localhost:5173`.
+
+Para gerar a versão de produção e servir ela:
+
+```bash
 npm run build
+npm run start
 ```
 
-This starter does not use `wrangler.jsonc`.
+---
 
-## Included Shape
+## Como o site é navegado
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+É **uma tela só que desliza para o lado**, não uma página que rola para baixo.
+Cinco seções, cada uma ocupando a tela inteira:
 
-## Workspace Auth Headers
+| # | Seção | O que faz |
+|---|---|---|
+| 1 | Início | Chamada principal |
+| 2 | O que é | Explica o produto em uma frase |
+| 3 | Quem somos | Time e história — **texto ainda provisório** |
+| 4 | Como funciona | Os três passos do agendamento |
+| 5 | Contato | Mockup de conversa + botão do WhatsApp |
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
+Funciona com clique nos indicadores, roda do mouse, setas do teclado e swipe no
+celular. Quem faz isso é o CSS (`scroll-snap-type: x mandatory`), não JavaScript
+simulando gesto — por isso é fluido no celular.
 
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
+---
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+## Estrutura
 
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```
+app/
+  page.tsx               as cinco seções e o botão do WhatsApp
+  CircuitBackground.tsx  fundo animado em canvas
+  layout.tsx             metadados e fontes
+  globals.css            estilos e o scroll horizontal
+worker/index.ts          entrada do Cloudflare Worker
+build/                   plugin de build (é código-fonte, não saída)
+db/                      schema Drizzle — não usado no site hoje
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+### O fundo animado
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+`CircuitBackground.tsx` desenha trilhas ortogonais estilo placa de circuito num
+`<canvas>`, com riscos de luz correndo por algumas delas. No desktop os pontos
+acendem perto do mouse. Respeita "reduzir movimento" do sistema: com a opção
+ligada, desenha as trilhas paradas e não anima nada.
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+---
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+## O que falta
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+Duas coisas dependem de você, não de código:
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+1. **Número do WhatsApp.** A constante `WHATSAPP_NUMBER` em `app/page.tsx` está
+   com o placeholder `5511999999999`. Trocar pelo número comercial real.
+2. **Texto de "Quem somos".** O que está lá é um texto genérico de missão,
+   escrito só para não deixar a seção vazia. Precisa da história real.
 
-## Useful Commands
+---
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+## Notas técnicas
 
-## Learn More
+**Stack:** React 19 com React Server Components, [vinext](https://github.com/cloudflare/vinext)
+sobre Vite, deploy em Cloudflare Workers, Tailwind 4. Drizzle está instalado mas
+o site não usa banco hoje.
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+**`.openai/hosting.json`** é gerado pela plataforma que criou o projeto e fica
+fora do git. O `vite.config.ts` lê o arquivo se ele existir e segue sem ele caso
+contrário — sem isso, o projeto não subia em nenhuma máquina que não fosse a
+original.
+
+**Sem segredo no repositório.** Não há `.env` versionado nem chave no código.
+Qualquer credencial futura entra como variável de ambiente no Cloudflare, nunca
+em arquivo commitado.
