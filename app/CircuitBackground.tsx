@@ -24,7 +24,6 @@ const TONES = ["54, 224, 161", "43, 217, 107", "134, 245, 190"];
 // Cauda longa: cometa precisa de rastro, nao de um tracinho.
 const STREAK = 150;
 const REST = 190;
-const SLICES = 18;
 
 const sign = (v: number) => (v < 0 ? -1 : 1);
 
@@ -56,8 +55,8 @@ function route(from: Point, to: Point, horizontalFirst: boolean): Point[] {
 }
 
 /**
- * Recorta o pedaço da polilinha entre duas distâncias, para desenhar a cauda
- * do cometa em fatias com espessura e brilho decrescentes.
+ * Recorta o pedaço da polilinha entre duas distâncias — é o rastro visível
+ * do cometa num instante, do fim da cauda até a cabeça.
  */
 function slicePolyline(points: Point[], from: number, to: number): Point[] {
   const out: Point[] = [];
@@ -87,7 +86,7 @@ function slicePolyline(points: Point[], from: number, to: number): Point[] {
 function strokePolyline(
   ctx: CanvasRenderingContext2D,
   pts: Point[],
-  color: string,
+  color: string | CanvasGradient,
   widthPx: number,
 ) {
   if (pts.length < 2) return;
@@ -314,10 +313,12 @@ export default function CircuitBackground() {
         ctx.save();
         ctx.lineCap = "round";
 
-        // Cometa: a cauda é desenhada em fatias, cada uma mais fina e mais
-        // apagada que a anterior. Um traço de espessura constante com uma
-        // bolinha na ponta lê como minhoca; o que dá leitura de cometa é a
-        // massa concentrada na cabeça e o rastro afinando atrás dela.
+        // Cometa em UM traço só, com gradiente ao longo do caminho.
+        //
+        // Antes a cauda saía em 18 fatias separadas. Onde uma encostava na
+        // outra o alpha se somava e aparecia um ponto mais claro — de perto o
+        // rastro lia como uma fileira de bolinhas, não como um cometa. Um
+        // traço único com gradiente não tem emenda nenhuma.
         for (const trace of lit) {
           const cycle = trace.length + STREAK + REST;
           const travelled = (time * trace.speed + trace.phase * cycle) % cycle;
@@ -329,49 +330,69 @@ export default function CircuitBackground() {
           const to = Math.min(trace.length, headAt);
           if (to - from < 1) continue;
 
-          // Ao encostar na ilha final a cabeca ficava parada esperando a cauda
-          // alcancar, o que lia como travar, e depois sumia de uma vez. Agora
+          // Ao encostar na ilha final a cabeça ficava parada esperando a cauda
+          // alcançar, o que lia como travar, e depois sumia de uma vez. Agora
           // o cometa se dissolve conforme chega.
           const overrun = headAt - trace.length;
-          const fade =
-            overrun <= 0 ? 1 : Math.max(0, 1 - overrun / STREAK);
+          const fade = overrun <= 0 ? 1 : Math.max(0, 1 - overrun / STREAK);
           if (fade <= 0.01) continue;
 
           const tone = TONES[trace.tone];
+          const pts = slicePolyline(trace.points, from, to);
+          if (pts.length < 2) continue;
 
-          for (let s = 0; s < SLICES; s++) {
-            const f0 = s / SLICES;
-            const f1 = (s + 1) / SLICES;
-            const d0 = from + (to - from) * f0;
-            const d1 = from + (to - from) * f1;
-            const pts = slicePolyline(trace.points, d0, d1);
-            if (pts.length < 2) continue;
+          const tail = pts[0];
+          const head = pts[pts.length - 1];
 
-            // f1 = 1 é a cabeça. Elevar ao quadrado concentra brilho e
-            // espessura na frente, em vez de espalhar pela cauda inteira.
-            const k = f1 * f1;
+          // O gradiente vai da cauda para a cabeça. As paradas concentram o
+          // brilho na frente em vez de espalhar pelo rastro inteiro.
+          const grad = (peak: number) => {
+            const g = ctx!.createLinearGradient(tail.x, tail.y, head.x, head.y);
+            g.addColorStop(0, `rgba(${tone}, 0)`);
+            g.addColorStop(0.45, `rgba(${tone}, ${peak * 0.14 * fade})`);
+            g.addColorStop(0.75, `rgba(${tone}, ${peak * 0.45 * fade})`);
+            g.addColorStop(0.94, `rgba(${tone}, ${peak * fade})`);
+            g.addColorStop(1, `rgba(${tone}, ${peak * fade})`);
+            return g;
+          };
 
-            ctx.shadowColor = `rgba(${tone}, ${0.9 * k * fade})`;
-            ctx.shadowBlur = 4 + 16 * k;
-            strokePolyline(ctx!, pts, `rgba(${tone}, ${0.85 * k * fade})`, 0.6 + 2.6 * k);
-          }
+          // Três passadas do mesmo traço: halo largo e difuso, corpo, e o
+          // núcleo fino. Cada uma é um stroke só — nada de emenda.
+          ctx.shadowColor = `rgba(${tone}, ${0.55 * fade})`;
+          ctx.shadowBlur = 26;
+          strokePolyline(ctx!, pts, grad(0.30) as unknown as string, 7);
 
-          // Núcleo branco-esverdeado na cabeça, como o miolo de um cometa.
-          if (headAt >= 0 && headAt <= trace.length) {
-            const head = pointAlong(trace, headAt);
-            ctx.shadowColor = `rgba(${tone}, ${fade})`;
-            ctx.shadowBlur = 22;
-            ctx.fillStyle = `rgba(214, 255, 234, ${0.98 * fade})`;
-            ctx.beginPath();
-            ctx.arc(head.x, head.y, 2.3, 0, Math.PI * 2);
-            ctx.fill();
+          ctx.shadowBlur = 14;
+          strokePolyline(ctx!, pts, grad(0.72) as unknown as string, 3);
 
-            ctx.shadowBlur = 34;
-            ctx.fillStyle = `rgba(${tone}, ${0.4 * fade})`;
-            ctx.beginPath();
-            ctx.arc(head.x, head.y, 5.5, 0, Math.PI * 2);
-            ctx.fill();
-          }
+          ctx.shadowBlur = 8;
+          const core = ctx.createLinearGradient(tail.x, tail.y, head.x, head.y);
+          core.addColorStop(0, `rgba(${tone}, 0)`);
+          core.addColorStop(0.6, `rgba(${tone}, ${0.5 * fade})`);
+          core.addColorStop(0.92, `rgba(200, 255, 228, ${0.95 * fade})`);
+          core.addColorStop(1, `rgba(230, 255, 242, ${fade})`);
+          strokePolyline(ctx!, pts, core as unknown as string, 1.3);
+
+          // Cabeça: núcleo quase branco com dois halos, como o miolo de um
+          // cometa de verdade.
+          ctx.shadowColor = `rgba(${tone}, ${fade})`;
+          ctx.shadowBlur = 40;
+          ctx.fillStyle = `rgba(${tone}, ${0.3 * fade})`;
+          ctx.beginPath();
+          ctx.arc(head.x, head.y, 7.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.shadowBlur = 26;
+          ctx.fillStyle = `rgba(${tone}, ${0.55 * fade})`;
+          ctx.beginPath();
+          ctx.arc(head.x, head.y, 3.6, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.shadowBlur = 16;
+          ctx.fillStyle = `rgba(235, 255, 245, ${fade})`;
+          ctx.beginPath();
+          ctx.arc(head.x, head.y, 1.9, 0, Math.PI * 2);
+          ctx.fill();
         }
 
         ctx.restore();
