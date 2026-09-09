@@ -10,12 +10,62 @@ type Trace = {
   animated: boolean;
   phase: number;
   speed: number;
+  tone: number;
 };
+type Pad = { x: number; y: number; r: number; hollow: boolean };
 
 const GREEN = "54, 224, 161";
 
-const STREAK = 54;
-const REST = 260;
+// Três verdes para as trilhas não parecerem desenhadas com a mesma caneta.
+// O site tem fundo preto, então a variação é entre verdes CLAROS: tom escuro
+// sobre preto simplesmente some.
+const TONES = ["54, 224, 161", "43, 217, 107", "134, 245, 190"];
+
+const STREAK = 72;
+const REST = 200;
+
+const sign = (v: number) => (v < 0 ? -1 : 1);
+
+/**
+ * Roteia como numa placa de verdade: trecho reto, diagonal de 45 graus, trecho
+ * reto. É a diagonal que dá a leitura de PCB em vez de grade quadriculada.
+ */
+function route(from: Point, to: Point, horizontalFirst: boolean): Point[] {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const diag = Math.min(Math.abs(dx), Math.abs(dy));
+
+  if (horizontalFirst) {
+    const turn = from.x + sign(dx) * (Math.abs(dx) - diag);
+    return [
+      from,
+      { x: turn, y: from.y },
+      { x: turn + sign(dx) * diag, y: from.y + sign(dy) * diag },
+      to,
+    ];
+  }
+  const turn = from.y + sign(dy) * (Math.abs(dy) - diag);
+  return [
+    from,
+    { x: from.x, y: turn },
+    { x: from.x + sign(dx) * diag, y: turn + sign(dy) * diag },
+    to,
+  ];
+}
+
+function pathOf(points: Point[]): { path: Path2D; length: number } {
+  const path = new Path2D();
+  path.moveTo(points[0].x, points[0].y);
+  let length = 0;
+  for (let i = 1; i < points.length; i++) {
+    path.lineTo(points[i].x, points[i].y);
+    length += Math.hypot(
+      points[i].x - points[i - 1].x,
+      points[i].y - points[i - 1].y,
+    );
+  }
+  return { path, length };
+}
 
 /**
  * Fundo decorativo: trilhas ortogonais estilo placa de circuito, com um
@@ -40,9 +90,9 @@ export default function CircuitBackground() {
     let width = 0;
     let height = 0;
     let dpr = 1;
-    let nodes: Point[] = [];
     let traces: Trace[] = [];
     let lit: Trace[] = [];
+    let pads: Pad[] = [];
     let raf = 0;
     let running = false;
     let resizeTimer = 0;
@@ -64,57 +114,122 @@ export default function CircuitBackground() {
         }
         grid.push(row);
       }
-      nodes = grid.flat();
+
 
       const built: Trace[] = [];
+      const builtPads: Pad[] = [];
+
+      const addTrace = (a: Point, b: Point, bus: boolean) => {
+        const horizontalFirst = Math.random() > 0.5;
+        const points = route(a, b, horizontalFirst);
+        const { path, length } = pathOf(points);
+        if (length < 8) return;
+        built.push({
+          points,
+          path,
+          length,
+          animated: false,
+          phase: Math.random(),
+          // px por milissegundo — independente do comprimento da trilha,
+          // então o risco corre na mesma velocidade em todas elas.
+          speed: 0.075 + Math.random() * 0.075,
+          tone: Math.floor(Math.random() * TONES.length),
+        });
+
+        // Feixe: trilhas correndo juntas, como um barramento numa placa.
+        if (bus) {
+          const offsets = Math.random() > 0.5 ? [5, 10] : [6];
+          for (const off of offsets) {
+            const shifted = route(
+              { x: a.x, y: a.y + off },
+              { x: b.x, y: b.y + off },
+              horizontalFirst,
+            );
+            const built2 = pathOf(shifted);
+            built.push({
+              points: shifted,
+              path: built2.path,
+              length: built2.length,
+              animated: false,
+              phase: Math.random(),
+              speed: 0.075 + Math.random() * 0.075,
+              tone: Math.floor(Math.random() * TONES.length),
+            });
+          }
+        }
+      };
+
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const p = grid[r][c];
-          const targets: Point[] = [];
-          if (c < cols - 1 && Math.random() > 0.35) targets.push(grid[r][c + 1]);
-          if (r < rows - 1 && Math.random() > 0.55) targets.push(grid[r + 1][c]);
-          for (const n of targets) {
-            const bend: Point =
-              Math.random() > 0.5 ? { x: n.x, y: p.y } : { x: p.x, y: n.y };
-            const points = [p, bend, n];
-            const length =
-              Math.hypot(bend.x - p.x, bend.y - p.y) +
-              Math.hypot(n.x - bend.x, n.y - bend.y);
-            if (length < 1) continue;
 
-            const path = new Path2D();
-            path.moveTo(p.x, p.y);
-            path.lineTo(bend.x, bend.y);
-            path.lineTo(n.x, n.y);
+          if (c < cols - 1 && Math.random() > 0.4) {
+            addTrace(p, grid[r][c + 1], Math.random() > 0.72);
+          }
+          if (r < rows - 1 && Math.random() > 0.56) {
+            addTrace(p, grid[r + 1][c], false);
+          }
+          if (r < rows - 1 && c < cols - 1 && Math.random() > 0.82) {
+            addTrace(p, grid[r + 1][c + 1], false);
+          }
 
+          // Ilhas: nem todo nó vira pad, e alguns são vias vazadas.
+          if (Math.random() > 0.45) {
+            builtPads.push({
+              x: p.x,
+              y: p.y,
+              r: Math.random() > 0.72 ? 3.2 : 2,
+              hollow: Math.random() > 0.55,
+            });
+          }
+
+          // Stub curto terminando em ilha, comum numa placa real.
+          if (Math.random() > 0.8) {
+            const len = spacing * (0.28 + Math.random() * 0.22);
+            const dir = Math.floor(Math.random() * 4);
+            const end =
+              dir === 0
+                ? { x: p.x + len, y: p.y }
+                : dir === 1
+                  ? { x: p.x - len, y: p.y }
+                  : dir === 2
+                    ? { x: p.x, y: p.y + len }
+                    : { x: p.x, y: p.y - len };
+            const stub = pathOf([p, end]);
             built.push({
-              points,
-              path,
-              length,
+              points: [p, end],
+              path: stub.path,
+              length: stub.length,
               animated: false,
               phase: Math.random(),
-              // px por milissegundo — independente do comprimento da trilha,
-              // então o risco corre na mesma velocidade em todas elas.
-              speed: 0.075 + Math.random() * 0.075,
+              speed: 0.08,
+              tone: Math.floor(Math.random() * TONES.length),
+            });
+            builtPads.push({
+              x: end.x,
+              y: end.y,
+              r: 2.4,
+              hollow: Math.random() > 0.5,
             });
           }
         }
       }
 
       traces = built;
+      pads = builtPads;
 
       // Sorteia as trilhas acesas em vez de pegar as primeiras da lista: como
       // a lista é montada linha por linha, `slice(0, n)` deixava a animação
       // toda amontoada no canto superior esquerdo.
-      const indices = built.map((_, i) => i);
-      for (let i = indices.length - 1; i > 0; i--) {
+      const long = built.filter((t) => t.length > spacing * 0.6);
+      for (let i = long.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [indices[i], indices[j]] = [indices[j], indices[i]];
+        [long[i], long[j]] = [long[j], long[i]];
       }
-      const howMany = Math.min(built.length, width < 700 ? 12 : 22);
-      lit = indices.slice(0, howMany).map((i) => {
-        built[i].animated = true;
-        return built[i];
+      const howMany = Math.min(long.length, width < 700 ? 20 : 36);
+      lit = long.slice(0, howMany).map((t) => {
+        t.animated = true;
+        return t;
       });
     }
 
@@ -149,20 +264,30 @@ export default function CircuitBackground() {
     function draw(time: number) {
       ctx.clearRect(0, 0, width, height);
 
-      ctx.strokeStyle = `rgba(${GREEN}, 0.075)`;
-      ctx.lineWidth = 1;
-      for (const trace of traces) ctx.stroke(trace.path);
+      ctx.lineWidth = 1.1;
+      ctx.lineJoin = "round";
+      for (const trace of traces) {
+        ctx.strokeStyle = `rgba(${TONES[trace.tone]}, 0.115)`;
+        ctx.stroke(trace.path);
+      }
 
-      for (const n of nodes) {
-        let alpha = 0.12;
+      // Ilhas e vias: é o que faz o desenho ler como placa em vez de malha.
+      for (const pad of pads) {
+        let alpha = 0.2;
         if (mouse.active) {
-          const d = Math.hypot(n.x - mouse.x, n.y - mouse.y);
-          if (d < 160) alpha = 0.12 + (1 - d / 160) * 0.55;
+          const d = Math.hypot(pad.x - mouse.x, pad.y - mouse.y);
+          if (d < 170) alpha = 0.2 + (1 - d / 170) * 0.6;
         }
         ctx.beginPath();
-        ctx.arc(n.x, n.y, 1.6, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${GREEN}, ${alpha})`;
-        ctx.fill();
+        ctx.arc(pad.x, pad.y, pad.r, 0, Math.PI * 2);
+        if (pad.hollow) {
+          ctx.strokeStyle = `rgba(${GREEN}, ${alpha})`;
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = `rgba(${GREEN}, ${alpha})`;
+          ctx.fill();
+        }
       }
 
       if (!reduceMotion) {
