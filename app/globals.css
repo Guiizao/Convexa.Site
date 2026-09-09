@@ -77,12 +77,19 @@ a { color: inherit; text-decoration: none; }
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  /* Duas camadas: a horizontal serve o hero, onde o texto fica à esquerda; a
+     radial escurece o miolo, onde ficam as seções centralizadas. Só com a
+     horizontal, o circuito passava por trás do texto do meio da tela. */
   background:
+    radial-gradient(120% 78% at 50% 50%,
+      rgba(0, 0, 0, 0.82) 0%,
+      rgba(0, 0, 0, 0.55) 42%,
+      transparent 78%),
     linear-gradient(90deg,
-      rgba(0, 0, 0, 0.88) 0%,
-      rgba(0, 0, 0, 0.72) 26%,
-      rgba(0, 0, 0, 0.28) 58%,
-      rgba(0, 0, 0, 0.12) 100%);
+      rgba(0, 0, 0, 0.86) 0%,
+      rgba(0, 0, 0, 0.62) 28%,
+      rgba(0, 0, 0, 0.22) 62%,
+      rgba(0, 0, 0, 0.08) 100%);
 }
 .track {
   position: relative;
@@ -245,4 +252,276 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
   .heroVisual { display: none; }
   .floatingTag { display: none; }
   .valueRow, .audienceRow.compact { margin-top: 8px; }
+}
+
+/* ═══════════════════════ LUZ QUE SEGUE O PONTEIRO ═══════════════════════ */
+
+/* Luz de página inteira. Fica atrás do conteúdo e some em telas de toque —
+   `data-on` só é escrito quando existe ponteiro fino. */
+.cursorGlow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  --gx: 50vw;
+  --gy: 50vh;
+  --ga: 1;
+}
+.cursorGlow[data-on="1"] {
+  opacity: var(--ga, 1);
+  transition: opacity .5s ease;
+  background:
+    radial-gradient(420px circle at var(--gx) var(--gy),
+      rgba(54, 224, 161, 0.09),
+      rgba(54, 224, 161, 0.035) 38%,
+      transparent 68%);
+}
+
+/* Realce local: borda acende perto do cursor, superfície ganha brilho. */
+.spot { position: relative; isolation: isolate; --mx: 50%; --my: 50%; --ma: 0; }
+.spot > .spotBorder,
+.spot > .spotGlow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--ma);
+  transition: opacity .28s ease;
+}
+/* A borda é um gradiente recortado pela máscara, deixando só a linha de 1px. */
+.spot > .spotBorder {
+  z-index: 2;
+  padding: 1px;
+  background: radial-gradient(180px circle at var(--mx) var(--my),
+    rgba(127, 240, 199, 0.85), rgba(54, 224, 161, 0.25) 45%, transparent 72%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.spot > .spotGlow {
+  z-index: 0;
+  background: radial-gradient(220px circle at var(--mx) var(--my),
+    rgba(54, 224, 161, 0.12), transparent 70%);
+}
+.spot > *:not(.spotBorder):not(.spotGlow) { position: relative; z-index: 1; }
+
+/* ═══════════════════════ REAÇÃO A INTERAÇÃO ═══════════════════════ */
+
+.navLinks button { position: relative; }
+.navLinks button:not(.active):hover { background: #ffffff0a; }
+
+.navCta, .primary {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 22px -8px rgba(54, 224, 161, .5);
+}
+.navCta:hover, .primary:hover {
+  box-shadow: 0 12px 30px -8px rgba(54, 224, 161, .65);
+}
+.navCta:active, .primary:active { transform: translateY(0); }
+
+/* Brilho que varre o botão ao passar o mouse. */
+.primary::after, .navCta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, #ffffff5c 50%, transparent 65%);
+  transform: translateX(-120%);
+  transition: transform .6s ease;
+}
+.primary:hover::after, .navCta:hover::after { transform: translateX(120%); }
+
+.textLink .play { transition: border-color .2s ease, color .2s ease, transform .2s ease; }
+.textLink:hover .play { border-color: var(--green); color: var(--green); transform: scale(1.08); }
+
+.audienceRow.compact div { position: relative; }
+.audienceRow.compact div:hover { background: #ffffff05; }
+
+.valueRow > div { transition: transform .25s ease, border-color .25s ease; }
+.valueRow > div:hover { transform: translateY(-3px); border-color: #2f5a4b; }
+
+.stepGrid.compact article { transition: transform .3s ease, border-color .3s ease; }
+.stepGrid.compact article:hover { transform: translateY(-4px); border-color: #2f5a4b; }
+
+/* Foco visível por teclado — o hover não pode ser o único caminho. */
+.navLinks button:focus-visible,
+.navCta:focus-visible,
+.primary:focus-visible,
+.textLink:focus-visible,
+.brand:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* ═══════════════════════ ENTRADA DAS SEÇÕES ═══════════════════════ */
+
+/* O conteúdo entra quando a seção vira a ativa, não no carregamento — assim a
+   animação acompanha a navegação em vez de tocar toda de uma vez. */
+.pane .paneInner > * {
+  opacity: 0;
+  transform: translateY(14px);
+}
+.pane.isActive .paneInner > * {
+  opacity: 1;
+  transform: none;
+  transition: opacity .5s ease, transform .5s cubic-bezier(.2, .7, .3, 1);
+}
+.pane.isActive .paneInner > *:nth-child(1) { transition-delay: .04s; }
+.pane.isActive .paneInner > *:nth-child(2) { transition-delay: .10s; }
+.pane.isActive .paneInner > *:nth-child(3) { transition-delay: .16s; }
+.pane.isActive .paneInner > *:nth-child(4) { transition-delay: .22s; }
+.pane.isActive .paneInner > *:nth-child(5) { transition-delay: .28s; }
+.pane.isActive .paneInner > *:nth-child(6) { transition-delay: .34s; }
+
+.heroGrid > * { opacity: 0; transform: translateY(14px); }
+.pane.isActive .heroGrid > * {
+  opacity: 1;
+  transform: none;
+  transition: opacity .55s ease, transform .55s cubic-bezier(.2, .7, .3, 1);
+}
+.pane.isActive .heroGrid > *:nth-child(2) { transition-delay: .12s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pane .paneInner > *,
+  .heroGrid > * { opacity: 1; transform: none; transition: none; }
+  .primary::after, .navCta::after { display: none; }
+  .cursorGlow { display: none; }
+  .spot > .spotBorder, .spot > .spotGlow { display: none; }
+}
+
+/* ═══════════ AJUSTES PARA OS ÍCONES SVG (no lugar dos glifos) ═══════════ */
+
+.primary svg, .navCta svg, .textLink svg { flex-shrink: 0; }
+.primary, .navCta { gap: 8px; }
+.whatsappBtn { gap: 12px; }
+.whatsappBtn span { margin-left: 0; }
+.play { margin-right: 8px; }
+.play svg { margin-left: 1px; }
+
+.eyebrow { line-height: 1; }
+
+/* Reticências do cabeçalho do chat viram três pontos desenhados. */
+.chatDots { display: flex; gap: 3px; align-items: center; }
+.chatDots i { width: 3px; height: 3px; border-radius: 50%; background: #ffffffb0; display: block; }
+
+.msg small { display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
+.msg small svg { color: #53a3f0; }
+.msg.confirmation small { color: #718079; }
+
+.chatInput .sendBtn { background: #1a8468; color: #fff; }
+.chatInput span { display: grid; place-items: center; }
+.chatInput span:first-child { width: 20px; height: 20px; }
+
+.confirmation > span { display: grid; place-items: center; }
+
+.floatingTag > span { display: grid; place-items: center; color: #0f7a56; }
+
+/* Etapas: o número vira etiqueta com ícone, em vez de um "01" solto. */
+.stepIcon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #6f8079;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+}
+.stepIcon svg { color: var(--green); }
+
+.audienceRow.compact .spot {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: clamp(10px, 2vh, 16px) 6px;
+  font-size: 10.5px;
+  color: #c1cac6;
+  transition: transform .25s ease, border-color .25s ease, background .25s ease;
+}
+.audienceRow.compact .spot:hover { transform: translateY(-3px); background: #ffffff05; }
+.audienceRow.compact .spot span {
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  margin: 0 auto 8px;
+}
+
+.valueRow .spot {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  background: #0e1512;
+  min-width: 190px;
+  text-align: left;
+  transition: transform .25s ease, border-color .25s ease;
+}
+.valueRow .spot:hover { transform: translateY(-3px); }
+.valueRow .spot b { display: block; font-size: 13.5px; margin-bottom: 4px; }
+.valueRow .spot small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+
+.stepGrid.compact .spot {
+  background: linear-gradient(150deg, #131b18, #0e1412);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: clamp(14px, 2.5vh, 22px);
+  text-align: left;
+  transition: transform .3s ease, border-color .3s ease;
+}
+.stepGrid.compact .spot:hover { transform: translateY(-4px); }
+.stepGrid.compact .spot h3 { font-size: 14.5px; margin: 6px 0 4px; }
+.stepGrid.compact .spot p { color: var(--muted); font-size: 11.5px; line-height: 1.5; margin: 0; }
+
+.aiOrb span { display: grid; place-items: center; }
+.calendarMini span { display: inline-flex; align-items: center; gap: 5px; }
+.calendarMini svg { color: var(--green); }
+
+/* ═══════════════════════ CELULAR: CORREÇÕES REAIS ═══════════════════════ */
+
+@media (max-width: 700px) {
+  /* A pílula de navegação era centrada em absoluto e passava por cima da
+     marca. Agora a barra é um flex de verdade e cada peça tem o seu espaço. */
+  .nav { gap: 10px; }
+  .navLinks {
+    position: static;
+    transform: none;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .navLinks::-webkit-scrollbar { display: none; }
+
+  /* Só a marca gráfica: o texto não cabe junto com os links. */
+  .brand { font-size: 0; gap: 0; flex-shrink: 0; }
+  .brand .dot { display: none; }
+  .brandMark { font-size: 17px; }
+
+  .navCta { flex-shrink: 0; padding: 10px 14px; font-size: 13px; }
+
+  /* O título usava só altura no clamp, então em tela estreita estourava a
+     largura. Passa a considerar as duas dimensões. */
+  h1, h2 {
+    font-size: clamp(26px, min(8.2vw, 5.2vh), 40px);
+    letter-spacing: -1.4px;
+  }
+  .lead, .heroCopy > p { font-size: 13.5px; }
+}
+
+/* Painel curto: o conteúdo rola dentro da própria seção em vez de ser cortado. */
+@media (max-height: 780px), (max-width: 700px) {
+  .paneInner {
+    max-height: none;
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding-block: 8px;
+  }
+  .paneInner::-webkit-scrollbar { display: none; }
+  .pane { align-items: flex-start; padding-top: calc(var(--nav-h) + 8px); }
+}
+
+@media (max-width: 700px) {
+  .stepGrid.compact { gap: 10px; }
+  .dots { bottom: 10px; }
 }

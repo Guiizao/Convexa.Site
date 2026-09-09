@@ -2,22 +2,40 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import CircuitBackground from "./CircuitBackground";
+import { CursorGlow, Spotlight } from "./Spotlight";
+import { SECTIONS, whatsappLink } from "./config";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Bolt,
+  Calendar,
+  Chat,
+  Check,
+  CheckDouble,
+  Cpu,
+  Droplet,
+  Dumbbell,
+  Pen,
+  Play,
+  Plus,
+  Scissors,
+  Send,
+  Sparkle,
+  Stethoscope,
+} from "./icons";
 
-const NAV_ITEMS = [
-  { id: "inicio", label: "Início" },
-  { id: "o-que-e", label: "O que é" },
-  { id: "quem-somos", label: "Quem somos" },
-  { id: "como-funciona", label: "Como funciona" },
-] as const;
+const NAV_ITEMS = SECTIONS.slice(0, -1);
+const SECTION_COUNT = SECTIONS.length;
+const CONTACT = SECTION_COUNT - 1;
 
-const SECTION_COUNT = NAV_ITEMS.length + 1; // + Contato
-
-// TODO: trocar pelo número real do WhatsApp comercial antes de publicar.
-const WHATSAPP_NUMBER = "5511999999999";
-const WHATSAPP_MESSAGE = "Olá! Quero conhecer o Convexa para o meu negócio.";
-const whatsappHref = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
-
-const audiences = ["Barbearias", "Salões", "Estética", "Tatuadores", "Personal trainers", "Clínicas"];
+const audiences = [
+  { label: "Barbearias", Icon: Scissors },
+  { label: "Salões", Icon: Sparkle },
+  { label: "Estética", Icon: Droplet },
+  { label: "Tatuadores", Icon: Pen },
+  { label: "Personal", Icon: Dumbbell },
+  { label: "Clínicas", Icon: Stethoscope },
+];
 
 export default function Home() {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -91,9 +109,13 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKey);
   }, [active, goTo]);
 
+  const pane = (index: number) => `pane${active === index ? " isActive" : ""}`;
+
   return (
     <main className="paged">
       <CircuitBackground />
+      <CursorGlow />
+
       <nav className="nav" aria-label="Navegação principal">
         <a
           className="brand"
@@ -122,7 +144,7 @@ export default function Home() {
           ))}
         </div>
 
-        <button className="navCta" type="button" onClick={() => goTo(SECTION_COUNT - 1)}>
+        <button className="navCta" type="button" onClick={() => goTo(CONTACT)}>
           Contato
         </button>
       </nav>
@@ -134,7 +156,7 @@ export default function Home() {
       </div>
 
       <div className="track" ref={trackRef}>
-        <section className="pane" id="inicio" aria-label="Início">
+        <section className={pane(0)} id="inicio" aria-label="Início">
           <div className="paneInner heroGrid">
             <div className="heroCopy">
               <div className="eyebrow">
@@ -150,11 +172,14 @@ export default function Home() {
                 horário e organiza tudo no seu painel. Simples assim.
               </p>
               <div className="heroActions">
-                <button className="primary" type="button" onClick={() => goTo(SECTION_COUNT - 1)}>
-                  Falar no WhatsApp <span>→</span>
+                <button className="primary" type="button" onClick={() => goTo(CONTACT)}>
+                  Falar no WhatsApp <ArrowRight />
                 </button>
                 <button className="textLink" type="button" onClick={() => goTo(3)}>
-                  <span className="play">▶</span> Ver como funciona
+                  <span className="play">
+                    <Play />
+                  </span>
+                  Ver como funciona
                 </button>
               </div>
             </div>
@@ -164,7 +189,9 @@ export default function Home() {
               <div className="orbit orbit2" />
               <WhatsAppMock />
               <div className="floatingTag">
-                <span>⚡</span>
+                <span>
+                  <Bolt size={14} />
+                </span>
                 <div>
                   <b>Novo agendamento</b>
                   <small>Chegou pelo WhatsApp</small>
@@ -174,7 +201,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="pane" id="o-que-e" aria-label="O que é">
+        <section className={pane(1)} id="o-que-e" aria-label="O que é">
           <div className="paneInner centered">
             <span className="kicker">O QUE É</span>
             <h2>
@@ -189,17 +216,19 @@ export default function Home() {
             </p>
             <span className="miniKicker">FEITO PARA NEGÓCIOS COM HORA MARCADA</span>
             <div className="audienceRow compact">
-              {audiences.map((a, i) => (
-                <div key={a}>
-                  <span>{["✂", "✦", "◉", "◆", "⚡", "+"][i]}</span>
-                  {a}
-                </div>
+              {audiences.map(({ label, Icon }) => (
+                <Spotlight key={label}>
+                  <span>
+                    <Icon size={18} />
+                  </span>
+                  {label}
+                </Spotlight>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="pane" id="quem-somos" aria-label="Quem somos">
+        <section className={pane(2)} id="quem-somos" aria-label="Quem somos">
           <div className="paneInner centered">
             <span className="kicker">QUEM SOMOS</span>
             <h2>
@@ -214,23 +243,21 @@ export default function Home() {
               com uma IA cuidando dos detalhes por trás.
             </p>
             <div className="valueRow">
-              <div>
-                <b>Simplicidade</b>
-                <small>Sem app novo pro cliente aprender</small>
-              </div>
-              <div>
-                <b>IA com toque humano</b>
-                <small>Conversa natural, não script robótico</small>
-              </div>
-              <div>
-                <b>No seu ritmo</b>
-                <small>O dono continua no controle da agenda</small>
-              </div>
+              {[
+                ["Simplicidade", "Sem app novo pro cliente aprender"],
+                ["IA com toque humano", "Conversa natural, não script robótico"],
+                ["No seu ritmo", "O dono continua no controle da agenda"],
+              ].map(([title, desc]) => (
+                <Spotlight key={title}>
+                  <b>{title}</b>
+                  <small>{desc}</small>
+                </Spotlight>
+              ))}
             </div>
           </div>
         </section>
 
-        <section className="pane" id="como-funciona" aria-label="Como funciona">
+        <section className={pane(3)} id="como-funciona" aria-label="Como funciona">
           <div className="paneInner centered">
             <span className="kicker">COMO FUNCIONA</span>
             <h2>
@@ -239,34 +266,45 @@ export default function Home() {
               <em>Sem você tocar no celular.</em>
             </h2>
             <div className="stepGrid compact">
-              <article>
-                <span className="stepIcon">01</span>
+              <Spotlight as="article">
+                <span className="stepIcon">
+                  <Chat size={15} /> ETAPA 01
+                </span>
                 <div className="phoneBubble">&ldquo;Oi, tem horário hoje?&rdquo;</div>
                 <h3>Seu cliente chama</h3>
                 <p>Ele manda uma mensagem no WhatsApp do seu negócio, como sempre fez.</p>
-              </article>
-              <article>
-                <span className="stepIcon">02</span>
+              </Spotlight>
+              <Spotlight as="article">
+                <span className="stepIcon">
+                  <Cpu size={15} /> ETAPA 02
+                </span>
                 <div className="aiOrb">
-                  C<span>✦</span>
+                  C
+                  <span>
+                    <Sparkle size={12} />
+                  </span>
                 </div>
                 <h3>A IA conversa</h3>
                 <p>Entende o pedido, oferece serviços e encontra os melhores horários.</p>
-              </article>
-              <article>
-                <span className="stepIcon">03</span>
+              </Spotlight>
+              <Spotlight as="article">
+                <span className="stepIcon">
+                  <Calendar size={15} /> ETAPA 03
+                </span>
                 <div className="calendarMini">
                   <b>13</b>
-                  <span>18:30 · Carlos ✓</span>
+                  <span>
+                    18:30 · Carlos <Check size={11} />
+                  </span>
                 </div>
                 <h3>A agenda se organiza</h3>
                 <p>O compromisso aparece no seu painel, pronto e confirmado.</p>
-              </article>
+              </Spotlight>
             </div>
           </div>
         </section>
 
-        <section className="pane paneContato" id="contato" aria-label="Contato">
+        <section className={`${pane(4)} paneContato`} id="contato" aria-label="Contato">
           <div className="paneInner centered">
             <span className="kicker">FALE AGORA</span>
             <h2>
@@ -282,11 +320,11 @@ export default function Home() {
               <WhatsAppMock compact />
               <a
                 className="primary whatsappBtn"
-                href={whatsappHref}
+                href={whatsappLink()}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Chamar no WhatsApp <span>↗</span>
+                Chamar no WhatsApp <ArrowUpRight size={18} />
               </a>
             </div>
           </div>
@@ -307,25 +345,35 @@ function WhatsAppMock({ compact = false }: { compact?: boolean }) {
             <i /> online agora
           </small>
         </div>
-        <span>•••</span>
+        <span className="chatDots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
       </div>
       <div className="chatBody">
         <div className="msg client">
           Oi! Tem horário pra corte amanhã depois das 18h?
-          <small>18:42 ✓✓</small>
+          <small>
+            18:42 <CheckDouble />
+          </small>
         </div>
         <div className="msg bot">
-          Oi, Carlos! 😊 Tenho sim. Encontrei dois horários:
+          Oi, Carlos! Tenho sim. Encontrei dois horários:
           <br />
           <b>18:30</b> ou <b>19:15</b>. Qual fica melhor?
           <small>18:42</small>
         </div>
         <div className="msg client short">
           18:30 perfeito!
-          <small>18:43 ✓✓</small>
+          <small>
+            18:43 <CheckDouble />
+          </small>
         </div>
         <div className="msg bot confirmation">
-          <span>✓</span>
+          <span>
+            <Check size={12} />
+          </span>
           <div>
             <b>Agendamento confirmado!</b>
             <br />
@@ -335,9 +383,13 @@ function WhatsAppMock({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
       <div className="chatInput">
-        <span>＋</span>
+        <span>
+          <Plus size={13} />
+        </span>
         <div>Mensagem</div>
-        <span>➤</span>
+        <span className="sendBtn">
+          <Send size={12} />
+        </span>
       </div>
     </div>
   );
