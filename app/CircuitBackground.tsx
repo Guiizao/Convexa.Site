@@ -144,135 +144,109 @@ export default function CircuitBackground() {
     let resizeTimer = 0;
     const mouse = { x: -9999, y: -9999, active: false };
 
-    function buildGrid() {
-      const spacing = width < 700 ? 88 : 118;
-      const cols = Math.ceil(width / spacing) + 2;
-      const rows = Math.ceil(height / spacing) + 2;
-      const grid: Point[][] = [];
-      for (let r = 0; r < rows; r++) {
-        const row: Point[] = [];
-        for (let c = 0; c < cols; c++) {
-          const jitter = spacing * 0.26;
-          row.push({
-            x: c * spacing + (Math.random() - 0.5) * jitter,
-            y: r * spacing + (Math.random() - 0.5) * jitter,
-          });
+    const PITCH = 26;
+
+    /**
+     * Um percurso e uma sequencia de trechos retos ligados por desvios de 45
+     * graus, sempre sobre a malha de corredores. O roteamento anterior ligava
+     * vizinhos ao acaso e o resultado era ruido, nao placa.
+     */
+    function routeAlongLanes(start: Point, horizontal: boolean, legs: number) {
+      const pts: Point[] = [start];
+      let cur = start;
+      let goingH = horizontal;
+      let sx = Math.random() > 0.5 ? 1 : -1;
+      let sy = Math.random() > 0.5 ? 1 : -1;
+
+      for (let i = 0; i < legs; i++) {
+        const run = PITCH * (2 + Math.floor(Math.random() * 5));
+        cur = goingH
+          ? { x: cur.x + sx * run, y: cur.y }
+          : { x: cur.x, y: cur.y + sy * run };
+        pts.push(cur);
+
+        if (i < legs - 1) {
+          const jog = PITCH * (1 + Math.floor(Math.random() * 2));
+          if (goingH) sy = Math.random() > 0.5 ? 1 : -1;
+          else sx = Math.random() > 0.5 ? 1 : -1;
+          cur = { x: cur.x + sx * jog, y: cur.y + sy * jog };
+          pts.push(cur);
+          // Manter a direcao na maior parte das vezes: alternar sempre deixa
+          // o desenho nervoso, e placa real tem corridas longas.
+          if (Math.random() > 0.72) goingH = !goingH;
         }
-        grid.push(row);
       }
+      return pts;
+    }
 
-
+    function buildGrid() {
       const built: Trace[] = [];
       const builtPads: Pad[] = [];
 
-      const addTrace = (a: Point, b: Point, bus: boolean) => {
-        const horizontalFirst = Math.random() > 0.5;
-        const points = route(a, b, horizontalFirst);
-        const { path, length } = pathOf(points);
-        if (length < 8) return;
+      const add = (pts: Point[]) => {
+        const { path, length } = pathOf(pts);
+        if (length < PITCH * 2) return;
         built.push({
-          points,
+          points: pts,
           path,
           length,
           animated: false,
           phase: Math.random(),
-          // px por milissegundo — independente do comprimento da trilha,
-          // então o risco corre na mesma velocidade em todas elas.
-          speed: 0.075 + Math.random() * 0.075,
+          speed: 0.07 + Math.random() * 0.07,
           tone: Math.floor(Math.random() * TONES.length),
         });
-
-        // Feixe: trilhas correndo juntas, como um barramento numa placa.
-        if (bus) {
-          const offsets = Math.random() > 0.5 ? [5, 10] : [6];
-          for (const off of offsets) {
-            const shifted = route(
-              { x: a.x, y: a.y + off },
-              { x: b.x, y: b.y + off },
-              horizontalFirst,
-            );
-            const built2 = pathOf(shifted);
-            built.push({
-              points: shifted,
-              path: built2.path,
-              length: built2.length,
-              animated: false,
-              phase: Math.random(),
-              speed: 0.075 + Math.random() * 0.075,
-              tone: Math.floor(Math.random() * TONES.length),
-            });
-          }
-        }
       };
 
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const p = grid[r][c];
+      const snap = () => ({
+        x: Math.floor((Math.random() * width) / PITCH) * PITCH,
+        y: Math.floor((Math.random() * height) / PITCH) * PITCH,
+      });
 
-          if (c < cols - 1 && Math.random() > 0.4) {
-            addTrace(p, grid[r][c + 1], Math.random() > 0.72);
-          }
-          if (r < rows - 1 && Math.random() > 0.56) {
-            addTrace(p, grid[r + 1][c], false);
-          }
-          if (r < rows - 1 && c < cols - 1 && Math.random() > 0.82) {
-            addTrace(p, grid[r + 1][c + 1], false);
-          }
+      const area = width * height;
+      const routeCount = Math.min(90, Math.max(14, Math.round(area / 22000)));
 
-          // Ilhas: nem todo nó vira pad, e alguns são vias vazadas.
-          if (Math.random() > 0.45) {
-            builtPads.push({
-              x: p.x,
-              y: p.y,
-              r: Math.random() > 0.72 ? 3.2 : 2,
-              hollow: Math.random() > 0.55,
-            });
-          }
+      for (let i = 0; i < routeCount; i++) {
+        const pts = routeAlongLanes(
+          snap(),
+          Math.random() > 0.5,
+          2 + Math.floor(Math.random() * 4),
+        );
+        add(pts);
 
-          // Stub curto terminando em ilha, comum numa placa real.
-          if (Math.random() > 0.8) {
-            const len = spacing * (0.28 + Math.random() * 0.22);
-            const dir = Math.floor(Math.random() * 4);
-            const end =
-              dir === 0
-                ? { x: p.x + len, y: p.y }
-                : dir === 1
-                  ? { x: p.x - len, y: p.y }
-                  : dir === 2
-                    ? { x: p.x, y: p.y + len }
-                    : { x: p.x, y: p.y - len };
-            const stub = pathOf([p, end]);
-            built.push({
-              points: [p, end],
-              path: stub.path,
-              length: stub.length,
-              animated: false,
-              phase: Math.random(),
-              speed: 0.08,
-              tone: Math.floor(Math.random() * TONES.length),
-            });
-            builtPads.push({
-              x: end.x,
-              y: end.y,
-              r: 2.4,
-              hollow: Math.random() > 0.5,
-            });
+        // Feixe: trilhas paralelas ao mesmo percurso, como um barramento.
+        if (Math.random() > 0.55) {
+          const lanes = 1 + Math.floor(Math.random() * 3);
+          for (let k = 1; k <= lanes; k++) {
+            add(pts.map((p) => ({ x: p.x, y: p.y + (k * PITCH) / 4 })));
           }
         }
+
+        for (const at of [pts[0], pts[pts.length - 1]]) {
+          builtPads.push({
+            x: at.x,
+            y: at.y,
+            r: Math.random() > 0.6 ? 3 : 2,
+            hollow: Math.random() > 0.5,
+          });
+        }
+      }
+
+      // Ilhas soltas em cruzamentos, como furos de componente.
+      const loose = Math.min(70, Math.max(8, Math.round(area / 30000)));
+      for (let i = 0; i < loose; i++) {
+        const at = snap();
+        builtPads.push({ x: at.x, y: at.y, r: 2, hollow: Math.random() > 0.4 });
       }
 
       traces = built;
       pads = builtPads;
 
-      // Sorteia as trilhas acesas em vez de pegar as primeiras da lista: como
-      // a lista é montada linha por linha, `slice(0, n)` deixava a animação
-      // toda amontoada no canto superior esquerdo.
-      const long = built.filter((t) => t.length > spacing * 0.6);
+      const long = built.filter((t) => t.length > PITCH * 5);
       for (let i = long.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [long[i], long[j]] = [long[j], long[i]];
       }
-      const howMany = Math.min(long.length, width < 700 ? 20 : 36);
+      const howMany = Math.min(long.length, width < 700 ? 16 : 30);
       lit = long.slice(0, howMany).map((t) => {
         t.animated = true;
         return t;
@@ -355,6 +329,14 @@ export default function CircuitBackground() {
           const to = Math.min(trace.length, headAt);
           if (to - from < 1) continue;
 
+          // Ao encostar na ilha final a cabeca ficava parada esperando a cauda
+          // alcancar, o que lia como travar, e depois sumia de uma vez. Agora
+          // o cometa se dissolve conforme chega.
+          const overrun = headAt - trace.length;
+          const fade =
+            overrun <= 0 ? 1 : Math.max(0, 1 - overrun / STREAK);
+          if (fade <= 0.01) continue;
+
           const tone = TONES[trace.tone];
 
           for (let s = 0; s < SLICES; s++) {
@@ -369,23 +351,23 @@ export default function CircuitBackground() {
             // espessura na frente, em vez de espalhar pela cauda inteira.
             const k = f1 * f1;
 
-            ctx.shadowColor = `rgba(${tone}, ${0.9 * k})`;
+            ctx.shadowColor = `rgba(${tone}, ${0.9 * k * fade})`;
             ctx.shadowBlur = 4 + 16 * k;
-            strokePolyline(ctx, pts, `rgba(${tone}, ${0.85 * k})`, 0.6 + 2.6 * k);
+            strokePolyline(ctx!, pts, `rgba(${tone}, ${0.85 * k * fade})`, 0.6 + 2.6 * k);
           }
 
           // Núcleo branco-esverdeado na cabeça, como o miolo de um cometa.
           if (headAt >= 0 && headAt <= trace.length) {
             const head = pointAlong(trace, headAt);
-            ctx.shadowColor = `rgba(${tone}, 1)`;
+            ctx.shadowColor = `rgba(${tone}, ${fade})`;
             ctx.shadowBlur = 22;
-            ctx.fillStyle = "rgba(214, 255, 234, 0.98)";
+            ctx.fillStyle = `rgba(214, 255, 234, ${0.98 * fade})`;
             ctx.beginPath();
             ctx.arc(head.x, head.y, 2.3, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.shadowBlur = 34;
-            ctx.fillStyle = `rgba(${tone}, 0.4)`;
+            ctx.fillStyle = `rgba(${tone}, ${0.4 * fade})`;
             ctx.beginPath();
             ctx.arc(head.x, head.y, 5.5, 0, Math.PI * 2);
             ctx.fill();
@@ -445,5 +427,10 @@ export default function CircuitBackground() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="circuitBg" aria-hidden="true" />;
+  return (
+    <>
+      <canvas ref={canvasRef} className="circuitBg" aria-hidden="true" />
+      <div className="circuitScrim" aria-hidden="true" />
+    </>
+  );
 }
