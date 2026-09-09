@@ -21,8 +21,10 @@ const GREEN = "54, 224, 161";
 // sobre preto simplesmente some.
 const TONES = ["54, 224, 161", "43, 217, 107", "134, 245, 190"];
 
-const STREAK = 72;
-const REST = 200;
+// Cauda longa: cometa precisa de rastro, nao de um tracinho.
+const STREAK = 150;
+const REST = 190;
+const SLICES = 18;
 
 const sign = (v: number) => (v < 0 ? -1 : 1);
 
@@ -51,6 +53,50 @@ function route(from: Point, to: Point, horizontalFirst: boolean): Point[] {
     { x: from.x + sign(dx) * diag, y: turn + sign(dy) * diag },
     to,
   ];
+}
+
+/**
+ * Recorta o pedaço da polilinha entre duas distâncias, para desenhar a cauda
+ * do cometa em fatias com espessura e brilho decrescentes.
+ */
+function slicePolyline(points: Point[], from: number, to: number): Point[] {
+  const out: Point[] = [];
+  let acc = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    if (seg === 0) continue;
+    const segEnd = acc + seg;
+    if (segEnd >= from && acc <= to) {
+      const s = Math.max(from, acc);
+      const e = Math.min(to, segEnd);
+      const t0 = (s - acc) / seg;
+      const t1 = (e - acc) / seg;
+      const p0 = { x: a.x + (b.x - a.x) * t0, y: a.y + (b.y - a.y) * t0 };
+      const p1 = { x: a.x + (b.x - a.x) * t1, y: a.y + (b.y - a.y) * t1 };
+      if (out.length === 0) out.push(p0);
+      out.push(p1);
+    }
+    acc = segEnd;
+    if (acc > to) break;
+  }
+  return out;
+}
+
+function strokePolyline(
+  ctx: CanvasRenderingContext2D,
+  pts: Point[],
+  color: string,
+  widthPx: number,
+) {
+  if (pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = widthPx;
+  ctx.stroke();
 }
 
 function pathOf(points: Point[]): { path: Path2D; length: number } {
@@ -99,7 +145,7 @@ export default function CircuitBackground() {
     const mouse = { x: -9999, y: -9999, active: false };
 
     function buildGrid() {
-      const spacing = width < 700 ? 110 : 150;
+      const spacing = width < 700 ? 88 : 118;
       const cols = Math.ceil(width / spacing) + 2;
       const rows = Math.ceil(height / spacing) + 2;
       const grid: Point[][] = [];
@@ -294,34 +340,54 @@ export default function CircuitBackground() {
         ctx.save();
         ctx.lineCap = "round";
 
+        // Cometa: a cauda é desenhada em fatias, cada uma mais fina e mais
+        // apagada que a anterior. Um traço de espessura constante com uma
+        // bolinha na ponta lê como minhoca; o que dá leitura de cometa é a
+        // massa concentrada na cabeça e o rastro afinando atrás dela.
         for (const trace of lit) {
           const cycle = trace.length + STREAK + REST;
           const travelled = (time * trace.speed + trace.phase * cycle) % cycle;
-
-          // Um único traço do padrão fica visível por vez: o "gap" é o ciclo
-          // inteiro. Deslocar o offset arrasta esse traço ao longo do caminho,
-          // que é o que faz a luz correr pelo fio em vez de piscar parada.
-          ctx.setLineDash([STREAK, cycle]);
-          ctx.lineDashOffset = STREAK - travelled;
-
-          ctx.shadowColor = `rgba(${GREEN}, 0.85)`;
-          ctx.shadowBlur = 14;
-          ctx.strokeStyle = `rgba(${GREEN}, 0.5)`;
-          ctx.lineWidth = 2.6;
-          ctx.stroke(trace.path);
-
-          ctx.shadowBlur = 6;
-          ctx.strokeStyle = `rgba(${GREEN}, 0.95)`;
-          ctx.lineWidth = 1.3;
-          ctx.stroke(trace.path);
-
           const headAt = travelled - STREAK;
+          const tailAt = headAt - STREAK;
+          if (headAt <= 0 || tailAt >= trace.length) continue;
+
+          const from = Math.max(0, tailAt);
+          const to = Math.min(trace.length, headAt);
+          if (to - from < 1) continue;
+
+          const tone = TONES[trace.tone];
+
+          for (let s = 0; s < SLICES; s++) {
+            const f0 = s / SLICES;
+            const f1 = (s + 1) / SLICES;
+            const d0 = from + (to - from) * f0;
+            const d1 = from + (to - from) * f1;
+            const pts = slicePolyline(trace.points, d0, d1);
+            if (pts.length < 2) continue;
+
+            // f1 = 1 é a cabeça. Elevar ao quadrado concentra brilho e
+            // espessura na frente, em vez de espalhar pela cauda inteira.
+            const k = f1 * f1;
+
+            ctx.shadowColor = `rgba(${tone}, ${0.9 * k})`;
+            ctx.shadowBlur = 4 + 16 * k;
+            strokePolyline(ctx, pts, `rgba(${tone}, ${0.85 * k})`, 0.6 + 2.6 * k);
+          }
+
+          // Núcleo branco-esverdeado na cabeça, como o miolo de um cometa.
           if (headAt >= 0 && headAt <= trace.length) {
             const head = pointAlong(trace, headAt);
-            ctx.shadowBlur = 12;
-            ctx.fillStyle = `rgba(${GREEN}, 1)`;
+            ctx.shadowColor = `rgba(${tone}, 1)`;
+            ctx.shadowBlur = 22;
+            ctx.fillStyle = "rgba(214, 255, 234, 0.98)";
             ctx.beginPath();
-            ctx.arc(head.x, head.y, 2.1, 0, Math.PI * 2);
+            ctx.arc(head.x, head.y, 2.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 34;
+            ctx.fillStyle = `rgba(${tone}, 0.4)`;
+            ctx.beginPath();
+            ctx.arc(head.x, head.y, 5.5, 0, Math.PI * 2);
             ctx.fill();
           }
         }
