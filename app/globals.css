@@ -9,7 +9,13 @@
   --text: #f5f8f7;
   --muted: #9ba8a3;
   --line: #26322e;
-  --nav-h: 76px;
+
+  /* Escala do computador. Vale 1px numa tela de 1440x900 e acompanha a menor
+     das duas proporções: o conteúdo cresce em monitor grande e encolhe em
+     notebook sem nunca passar da altura da tela. Antes os tamanhos eram fixos
+     e o site ficava miúdo em 1920 e cortado em 1366x768. */
+  --u: clamp(0.8px, min(100vw / 1440, 100vh / 900), 1.4px);
+  --nav-h: clamp(62px, calc(76 * var(--u)), 88px);
 }
 
 * { box-sizing: border-box; }
@@ -19,7 +25,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  overflow: hidden; /* navegação é 100% horizontal — sem rolagem vertical */
+  overflow: hidden; /* no computador a navegação é horizontal, sem rolagem vertical */
 }
 button, input { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; cursor: pointer; }
@@ -35,12 +41,31 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 clamp(18px, 4vw, 40px);
+  padding: 0 clamp(18px, 4vw, 48px);
   background: linear-gradient(to bottom, var(--bg) 55%, transparent);
 }
-.brand { font-size: 22px; font-weight: 760; letter-spacing: -1.2px; display: flex; align-items: center; gap: 8px; }
-.brandMark { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 2px solid var(--green); border-radius: 11px; color: var(--green); font-size: 17px; transform: rotate(-5deg); }
+.brand {
+  font-size: max(20px, calc(22 * var(--u)));
+  font-weight: 760;
+  letter-spacing: -0.05em;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.brandMark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45em;
+  height: 1.45em;
+  border: 2px solid var(--green);
+  border-radius: 0.5em;
+  color: var(--green);
+  font-size: 0.78em;
+  letter-spacing: 0;
+  transform: rotate(-5deg);
+}
 .dot { color: var(--green); }
+
 .navLinks {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   display: flex;
@@ -51,20 +76,47 @@ a { color: inherit; text-decoration: none; }
    A borda e o fundo da pílula continuam inteiros. */
 .navScroll { position: relative; display: flex; gap: 2px; min-width: 0; }
 .navLinks button {
-  background: none; border: 0; color: #b8c2be; font-size: 13.5px; font-weight: 600;
-  padding: 9px 16px; border-radius: 99px; transition: .2s;
+  position: relative;
+  background: none; border: 0; color: #b8c2be;
+  font-size: max(13px, calc(14 * var(--u))); font-weight: 600;
+  padding: 0.66em 1.15em; border-radius: 99px; transition: .2s;
   white-space: nowrap;
 }
 .navLinks button:hover { color: var(--text); }
+.navLinks button:not(.active):hover { background: #ffffff0a; }
 .navLinks button.active { background: var(--green); color: #06100c; }
+
 .navCta, .primary {
+  position: relative;
+  overflow: hidden;
   border: 0; background: var(--green); color: #06100c; font-weight: 750;
-  border-radius: 11px; padding: 12px 18px; transition: .2s; display: inline-flex; align-items: center;
+  border-radius: 11px; transition: .2s;
+  display: inline-flex; align-items: center; gap: 0.5em;
+  box-shadow: 0 6px 22px -8px rgba(54, 224, 161, .5);
 }
-.navCta:hover, .primary:hover { background: var(--green2); transform: translateY(-2px); }
+.navCta { font-size: max(14px, calc(15 * var(--u))); padding: 0.8em 1.2em; }
+.primary { font-size: max(14px, calc(16 * var(--u))); padding: 0.8em 1.25em; }
+.navCta:hover, .primary:hover {
+  background: var(--green2);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -8px rgba(54, 224, 161, .65);
+}
+.navCta:active, .primary:active { transform: translateY(0); }
+.primary svg, .navCta svg, .textLink svg { flex-shrink: 0; }
+
+/* Brilho que varre o botão ao passar o mouse. */
+.primary::after, .navCta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, #ffffff5c 50%, transparent 65%);
+  transform: translateX(-120%);
+  transition: transform .6s ease;
+}
+.primary:hover::after, .navCta:hover::after { transform: translateX(120%); }
 
 /* ───────────────────────── DOTS ───────────────────────── */
-.dots { position: fixed; bottom: clamp(14px, 3vh, 26px); left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 9px; }
+.dots { position: fixed; bottom: clamp(14px, 3vh, 28px); left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 9px; }
 .dots span { width: 7px; height: 7px; border-radius: 50%; background: #33433d; transition: .25s; display: block; }
 .dots span.active { background: var(--green); width: 22px; border-radius: 5px; }
 
@@ -72,8 +124,8 @@ a { color: inherit; text-decoration: none; }
 .paged { position: relative; height: 100vh; height: 100dvh; width: 100vw; overflow: hidden; }
 .circuitBg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-/* Veu sobre as trilhas: escurece onde o texto do hero fica, para o fundo nao
-   competir com a leitura, e some para a direita onde o desenho pode aparecer. */
+/* Véu sobre as trilhas: escurece onde o texto fica, para o fundo não competir
+   com a leitura. */
 .circuitScrim {
   position: fixed;
   inset: 0;
@@ -113,132 +165,280 @@ a { color: inherit; text-decoration: none; }
   padding-top: var(--nav-h);
   overflow: hidden;
 }
+/* A escala já faz o conteúdo caber. A rolagem interna é só a rede de segurança
+   para zoom alto do navegador ou janela muito baixa: o topo nunca é cortado. */
 .paneInner {
-  width: min(1180px, calc(100% - 48px));
+  width: min(calc(1180 * var(--u)), calc(100% - 64px));
   margin-inline: auto;
-  max-height: calc(100vh - var(--nav-h) - 24px);
-  max-height: calc(100dvh - var(--nav-h) - 24px);
-  overflow: hidden;
+  max-height: calc(100vh - var(--nav-h) - 32px);
+  max-height: calc(100dvh - var(--nav-h) - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.paneInner::-webkit-scrollbar { display: none; }
 .paneInner.centered { text-align: center; display: flex; flex-direction: column; align-items: center; }
 
-.kicker { color: var(--green); font-size: clamp(10px, 1.4vh, 12px); font-weight: 750; letter-spacing: 1.7px; }
-.miniKicker { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; margin-top: clamp(18px, 3vh, 34px); }
-h1, h2 { font-size: clamp(28px, 6.4vh, 62px); letter-spacing: -2.5px; line-height: 1.02; margin: clamp(10px, 2vh, 22px) 0; }
+.kicker { color: var(--green); font-size: max(11px, calc(12.5 * var(--u))); font-weight: 750; letter-spacing: .14em; }
+.miniKicker { color: var(--muted); font-size: max(10px, calc(11 * var(--u))); font-weight: 700; letter-spacing: .11em; margin-top: calc(36 * var(--u)); text-wrap: balance; }
+h1, h2 {
+  font-size: calc(58 * var(--u));
+  letter-spacing: -0.04em;
+  line-height: 1.04;
+  margin: calc(18 * var(--u)) 0;
+  text-wrap: balance;
+}
 h1 em, h2 em { font-style: normal; color: var(--green); }
-.lead { color: var(--muted); font-size: clamp(14px, 2vh, 17px); line-height: 1.6; max-width: 620px; margin: 0 auto; }
+/* A parte verde do título é um bloco próprio e equilibra as próprias linhas.
+   Com o <br> no meio o navegador não equilibra o que vem depois. */
+h2 em { display: block; }
+.lead {
+  color: var(--muted);
+  font-size: max(14px, calc(17 * var(--u)));
+  line-height: 1.6;
+  max-width: calc(640 * var(--u));
+  margin: 0 auto;
+  text-wrap: pretty;
+}
 
 /* ───────────────────────── HERO (Início) ───────────────────────── */
-.heroGrid { display: grid; grid-template-columns: .95fr 1.05fr; align-items: center; gap: clamp(24px, 4vw, 64px); }
+.heroGrid { display: grid; grid-template-columns: .95fr 1.05fr; align-items: center; gap: calc(56 * var(--u)); }
 .heroCopy { position: relative; z-index: 3; }
-.eyebrow { color: var(--green); font-size: 12px; font-weight: 750; letter-spacing: 1.7px; display: inline-flex; align-items: center; gap: 9px; border: 1px solid #1d4d3d; background: #0e211b; border-radius: 99px; padding: 8px 12px; }
+.eyebrow {
+  color: var(--green);
+  font-size: max(10.5px, calc(12 * var(--u)));
+  font-weight: 750;
+  letter-spacing: .12em;
+  line-height: 1;
+  display: inline-flex; align-items: center; gap: 0.75em;
+  border: 1px solid #1d4d3d; background: #0e211b; border-radius: 99px;
+  padding: 0.7em 1.1em;
+}
 .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 5px #36e0a120; }
-.heroCopy > p { font-size: clamp(14px, 2vh, 17px); line-height: 1.6; color: var(--muted); max-width: 520px; }
-.heroActions { display: flex; align-items: center; gap: clamp(14px, 2vh, 24px); margin-top: clamp(14px, 2.5vh, 28px); flex-wrap: wrap; }
-.textLink { font-size: 14px; font-weight: 700; background: none; border: 0; color: var(--text); display: inline-flex; align-items: center; }
-.play { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 1px solid #40504a; border-radius: 50%; font-size: 8px; margin-right: 8px; }
+.heroCopy > p {
+  font-size: max(14px, calc(17 * var(--u)));
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: calc(520 * var(--u));
+  margin: 0;
+  text-wrap: pretty;
+}
+.heroActions { display: flex; align-items: center; gap: calc(24 * var(--u)); margin-top: calc(30 * var(--u)); flex-wrap: wrap; }
+.textLink {
+  font-size: max(13px, calc(15 * var(--u)));
+  font-weight: 700;
+  background: none; border: 0; color: var(--text);
+  display: inline-flex; align-items: center;
+}
+.play {
+  display: inline-grid; place-items: center;
+  width: 1.8em; height: 1.8em; margin-right: 0.6em;
+  border: 1px solid #40504a; border-radius: 50%;
+  transition: border-color .2s ease, color .2s ease, transform .2s ease;
+}
+.play svg { margin-left: 1px; }
+.textLink:hover .play { border-color: var(--green); color: var(--green); transform: scale(1.08); }
 
-.heroVisual { height: 100%; max-height: min(52vh, 460px); position: relative; display: flex; justify-content: center; align-items: center; }
-.heroVisual:before { content: ""; position: absolute; width: 55%; aspect-ratio: 1; max-width: 380px; background: #22c98d1d; filter: blur(60px); border-radius: 50%; }
-.orbit { position: absolute; border: 1px solid #294139; border-radius: 50%; }
-.orbit1 { width: 92%; aspect-ratio: 1; max-width: 480px; }
-.orbit2 { width: 70%; aspect-ratio: 1; max-width: 370px; }
+/* Altura fixa na escala: o cartão, as órbitas e o brilho cabem inteiros e o
+   conjunto não empurra nem corta o resto da seção. */
+.heroVisual {
+  position: relative;
+  height: calc(480 * var(--u));
+  display: flex; justify-content: center; align-items: center;
+}
+.heroVisual:before {
+  content: ""; position: absolute;
+  width: calc(360 * var(--u)); aspect-ratio: 1;
+  background: #22c98d1d; filter: blur(60px); border-radius: 50%;
+}
+.orbit { position: absolute; border: 1px solid #294139; border-radius: 50%; aspect-ratio: 1; }
+.orbit1 { width: min(100%, calc(470 * var(--u))); }
+.orbit2 { width: min(78%, calc(360 * var(--u))); }
 
 /* ───────────────────────── WHATSAPP MOCK ───────────────────────── */
+/* Tudo dentro do cartão é medido em em: basta mudar o font-size do cartão para
+   ele crescer ou encolher inteiro, sem desalinhar nada. */
 .whatsappCard {
-  position: relative; width: min(320px, 82vw); background: #f2f0ea; color: #17211e;
-  border-radius: 24px; overflow: hidden; box-shadow: 0 25px 70px #0009; z-index: 2;
+  position: relative; z-index: 2;
+  font-size: calc(11 * var(--u));
+  width: 32em;
+  text-align: left;
+  background: #f2f0ea; color: #17211e;
+  border-radius: 2.4em; overflow: hidden; box-shadow: 0 25px 70px #0009;
 }
-.whatsappCard.compact { width: min(300px, 78vw); }
-.chatHead { height: 58px; background: #155f4c; color: white; display: flex; align-items: center; padding: 12px 15px; gap: 10px; }
-.botAvatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--green); color: #08251b; font-weight: 800; flex-shrink: 0; }
-.chatHead div:nth-child(2) { display: flex; flex-direction: column; flex: 1; font-size: 12px; }
-.chatHead small { font-size: 9px; font-weight: 400; color: #d1eee4; }
-.chatHead i { display: inline-block; width: 5px; height: 5px; background: #6dffc7; border-radius: 50%; }
-.chatBody { padding: 14px; background-color: #eae5dc; background-image: radial-gradient(#b7b0a6 0.6px, transparent .6px); background-size: 12px 12px; }
-.msg { font-size: 10px; line-height: 1.45; padding: 9px 10px; margin-bottom: 8px; border-radius: 10px; max-width: 83%; box-shadow: 0 1px 2px #0002; position: relative; }
-.msg small { display: block; text-align: right; font-size: 7px; color: #718079; }
+.chatHead { height: 5.8em; background: #155f4c; color: white; display: flex; align-items: center; padding: 1.2em 1.5em; gap: 1em; }
+.botAvatar { width: 2.4em; height: 2.4em; font-size: 1.5em; display: grid; place-items: center; border-radius: 50%; background: var(--green); color: #08251b; font-weight: 800; flex-shrink: 0; }
+.chatHead div:nth-child(2) { display: flex; flex-direction: column; flex: 1; font-size: 1.2em; }
+.chatHead small { font-size: .75em; font-weight: 400; color: #d1eee4; }
+.chatHead i { display: inline-block; width: .42em; height: .42em; background: #6dffc7; border-radius: 50%; }
+.chatDots { display: flex; gap: .3em; align-items: center; }
+.chatDots i { width: .3em; height: .3em; border-radius: 50%; background: #ffffffb0; display: block; }
+.chatBody { padding: 1.4em; background-color: #eae5dc; background-image: radial-gradient(#b7b0a6 0.6px, transparent .6px); background-size: 1.2em 1.2em; }
+.msg { font-size: 1em; line-height: 1.45; padding: .9em 1em; margin-bottom: .8em; border-radius: 1em; max-width: 83%; box-shadow: 0 1px 2px #0002; position: relative; }
+.msg small { display: flex; align-items: center; justify-content: flex-end; gap: .3em; font-size: .7em; color: #718079; }
+.msg small svg { color: #53a3f0; width: 1.6em; height: auto; }
 .msg.client { background: #d8f9d0; margin-left: auto; }
 .msg.bot { background: #fff; }
 .msg.short { width: 52%; }
-.msg.confirmation { display: flex; gap: 8px; align-items: center; max-width: 90%; padding: 11px; }
-.confirmation > span { width: 22px; height: 22px; background: #25d991; color: white; border-radius: 50%; display: grid; place-items: center; font-size: 13px; flex-shrink: 0; }
+.msg.confirmation { display: flex; gap: .8em; align-items: center; max-width: 90%; padding: 1.1em; }
+.msg.confirmation small { align-self: flex-end; color: #718079; }
+.confirmation > span { width: 2.2em; height: 2.2em; background: #25d991; color: white; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+.confirmation > span svg { width: 1.2em; height: auto; }
 .confirmation div { flex: 1; }
-.confirmation small { align-self: flex-end; }
-.chatInput { height: 42px; background: #f3f3f3; display: flex; align-items: center; padding: 8px; gap: 8px; color: #79817e; }
-.chatInput div { background: white; border-radius: 99px; flex: 1; padding: 8px 12px; font-size: 9px; }
-.chatInput span:last-child { background: #1a8468; color: white; border-radius: 50%; width: 25px; height: 25px; display: grid; place-items: center; font-size: 10px; }
+.chatInput { height: 4.2em; background: #f3f3f3; display: flex; align-items: center; padding: .8em; gap: .8em; color: #79817e; }
+.chatInput span { display: grid; place-items: center; }
+.chatInput span:first-child { width: 2em; height: 2em; }
+.chatInput span svg { width: 1.3em; height: auto; }
+.chatInput div { background: white; border-radius: 99px; flex: 1; padding: .8em 1.2em; font-size: .9em; }
+.chatInput .sendBtn { background: #1a8468; color: #fff; border-radius: 50%; width: 2.5em; height: 2.5em; }
 
 .floatingTag {
-  position: absolute; right: 2%; top: 8%; background: #f5f8f7; color: #13201b; z-index: 5;
-  border-radius: 12px; padding: 9px 12px; display: flex; align-items: center; gap: 8px;
+  position: absolute; right: 2%; top: 8%; z-index: 5;
+  font-size: calc(10 * var(--u));
+  background: #f5f8f7; color: #13201b;
+  border-radius: 1.2em; padding: .9em 1.2em;
+  display: flex; align-items: center; gap: .8em;
   box-shadow: 0 12px 35px #0008; animation: float 3s ease-in-out infinite;
 }
-.floatingTag > span { background: #d4faea; padding: 6px; border-radius: 8px; }
+.floatingTag > span { display: grid; place-items: center; color: #0f7a56; background: #d4faea; padding: .6em; border-radius: .8em; }
+.floatingTag > span svg { width: 1.4em; height: auto; }
 .floatingTag div { display: flex; flex-direction: column; }
-.floatingTag b { font-size: 9px; }
-.floatingTag small { font-size: 7px; color: #6d7974; }
+.floatingTag b { font-size: 1.05em; }
+.floatingTag small { font-size: .8em; color: #6d7974; }
 @keyframes float { 50% { transform: translateY(-8px); } }
 
 /* ───────────────────────── O QUE É (público) ───────────────────────── */
-.audienceRow.compact { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 10px; max-width: 780px; }
-.audienceRow.compact div { border: 1px solid var(--line); border-radius: 13px; padding: clamp(10px, 2vh, 16px) 6px; font-size: 10.5px; color: #c1cac6; transition: .2s; }
-.audienceRow.compact div:hover { border-color: var(--green); transform: translateY(-3px); }
-.audienceRow.compact span { display: block; color: var(--green); font-size: 17px; margin-bottom: 8px; }
+.audienceRow.compact {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: calc(10 * var(--u));
+  margin-top: calc(14 * var(--u));
+  width: 100%;
+  max-width: calc(820 * var(--u));
+}
+.audienceRow.compact .spot {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: calc(16 * var(--u)) 6px;
+  font-size: max(11px, calc(13 * var(--u)));
+  color: #c1cac6;
+  transition: transform .25s ease, border-color .25s ease, background .25s ease;
+}
+.audienceRow.compact .spot:hover { transform: translateY(-3px); background: #ffffff05; }
+.audienceRow.compact .spot span { display: grid; place-items: center; color: var(--green); margin: 0 auto 0.6em; }
+.audienceRow.compact .spot span svg { width: 1.5em; height: auto; }
 
 /* ───────────────────────── QUEM SOMOS (valores) ───────────────────────── */
-.valueRow { display: flex; gap: clamp(10px, 2vw, 20px); margin-top: clamp(16px, 3vh, 30px); flex-wrap: wrap; justify-content: center; }
-.valueRow > div { border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; background: #0e1512; min-width: 190px; text-align: left; }
-.valueRow b { display: block; font-size: 13.5px; margin-bottom: 4px; }
-.valueRow small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.valueRow {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: calc(16 * var(--u));
+  margin-top: calc(32 * var(--u));
+}
+.valueRow .spot {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: calc(18 * var(--u)) calc(22 * var(--u));
+  background: #0e1512;
+  min-width: calc(220 * var(--u));
+  text-align: left;
+  transition: transform .25s ease, border-color .25s ease;
+}
+.valueRow .spot:hover { transform: translateY(-3px); border-color: #2f5a4b; }
+.valueRow .spot b { display: block; font-size: max(13px, calc(15.5 * var(--u))); margin-bottom: 4px; }
+.valueRow .spot small { color: var(--muted); font-size: max(11.5px, calc(13 * var(--u))); line-height: 1.4; }
 
 /* ───────────────────────── COMO FUNCIONA ───────────────────────── */
-.stepGrid.compact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: clamp(16px, 3.5vh, 40px); max-width: 980px; }
-.stepGrid.compact article {
-  background: linear-gradient(150deg, #131b18, #0e1412); border: 1px solid var(--line);
-  border-radius: 20px; padding: clamp(14px, 2.5vh, 22px); position: relative; overflow: hidden; text-align: left;
+.stepGrid.compact {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: calc(16 * var(--u));
+  margin-top: calc(38 * var(--u));
+  width: 100%;
+  max-width: calc(1000 * var(--u));
 }
-.stepIcon { color: #53615b; font-size: 10px; font-weight: bold; }
-.phoneBubble, .aiOrb, .calendarMini { display: flex; align-items: center; justify-content: center; position: relative; }
-.phoneBubble { margin: 12px 0; background: #d8f9d0; color: #15221d; font-size: 10.5px; padding: 9px 12px; border-radius: 10px; width: fit-content; box-shadow: 0 8px 20px #0004; }
-.aiOrb { width: clamp(48px, 8vh, 64px); height: clamp(48px, 8vh, 64px); margin: 14px 0; border-radius: 22px; background: var(--green); color: #082018; font-weight: 800; font-size: clamp(18px, 3vh, 24px); box-shadow: 0 0 40px #36e0a140; }
-.aiOrb span { position: absolute; right: -8px; top: -8px; font-size: 13px; color: var(--green2); }
-.calendarMini { height: 56px; width: fit-content; margin: 14px 0; background: #1c2723; border: 1px solid #33443e; border-radius: 12px; gap: 10px; justify-content: flex-start; padding: 10px 14px; }
-.calendarMini b { width: 32px; height: 34px; background: var(--green); color: #0a1d16; display: grid; place-items: center; border-radius: 8px; }
-.calendarMini span { font-size: 9px; }
-.stepGrid.compact h3 { font-size: 14.5px; margin: 6px 0 4px; }
-.stepGrid.compact p { color: var(--muted); font-size: 11.5px; line-height: 1.5; margin: 0; }
+.stepGrid.compact .spot {
+  background: linear-gradient(150deg, #131b18, #0e1412);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: calc(24 * var(--u));
+  text-align: left;
+  overflow: hidden;
+  transition: transform .3s ease, border-color .3s ease;
+}
+.stepGrid.compact .spot:hover { transform: translateY(-4px); border-color: #2f5a4b; }
+.stepGrid.compact .spot h3 { font-size: max(14px, calc(17 * var(--u))); margin: 0.5em 0 0.3em; }
+.stepGrid.compact .spot p { color: var(--muted); font-size: max(12px, calc(14 * var(--u))); line-height: 1.5; margin: 0; text-wrap: pretty; }
+
+/* O número da etapa vira etiqueta com ícone, em vez de um "01" solto. */
+.stepIcon {
+  display: inline-flex; align-items: center; gap: 0.7em;
+  color: #6f8079;
+  font-size: max(10px, calc(11 * var(--u)));
+  font-weight: 700;
+  letter-spacing: .11em;
+}
+.stepIcon svg { color: var(--green); width: 1.5em; height: auto; }
+
+/* Mini ilustração de cada etapa. Todas com a mesma altura, para os títulos
+   dos três cartões ficarem na mesma linha. */
+.phoneBubble, .aiOrb, .calendarMini {
+  display: flex; align-items: center; justify-content: center; position: relative;
+  margin: calc(14 * var(--u)) 0;
+}
+.phoneBubble {
+  width: fit-content;
+  margin-block: calc(24 * var(--u));
+  padding: .7em 1em;
+  font-size: max(11px, calc(13 * var(--u)));
+  line-height: 1.2;
+  background: #d8f9d0; color: #15221d;
+  border-radius: 10px; box-shadow: 0 8px 20px #0004;
+}
+.aiOrb {
+  width: calc(56 * var(--u)); height: calc(56 * var(--u));
+  border-radius: calc(20 * var(--u));
+  background: var(--green); color: #082018; font-weight: 800;
+  font-size: calc(22 * var(--u));
+  box-shadow: 0 0 40px #36e0a140;
+}
+.aiOrb span { position: absolute; right: -0.4em; top: -0.4em; display: grid; place-items: center; color: var(--green2); }
+.aiOrb span svg { width: 0.6em; height: auto; }
+.calendarMini {
+  height: calc(56 * var(--u)); width: fit-content;
+  justify-content: flex-start; gap: calc(10 * var(--u));
+  padding: 0 calc(14 * var(--u));
+  background: #1c2723; border: 1px solid #33443e; border-radius: 12px;
+}
+.calendarMini b {
+  width: calc(32 * var(--u)); height: calc(34 * var(--u));
+  font-size: max(13px, calc(16 * var(--u)));
+  background: var(--green); color: #0a1d16;
+  display: grid; place-items: center; border-radius: 8px;
+}
+.calendarMini span { display: inline-flex; align-items: center; gap: 5px; font-size: max(10px, calc(12 * var(--u))); }
+.calendarMini svg { color: var(--green); }
 
 /* ───────────────────────── CONTATO ───────────────────────── */
-.paneContato .paneInner { display: flex; flex-direction: column; align-items: center; }
-.contatoRow { display: flex; flex-direction: column; align-items: center; gap: clamp(14px, 3vh, 26px); margin-top: clamp(14px, 3vh, 26px); }
-.whatsappBtn { font-size: 15px; padding: 15px 24px; }
-.whatsappBtn span { margin-left: 12px; }
+.contatoRow { display: flex; flex-direction: column; align-items: center; margin-top: calc(34 * var(--u)); }
+.whatsappBtn { font-size: max(15px, calc(18 * var(--u))); padding: 0.9em 1.6em; gap: 0.7em; }
 
-@media (prefers-reduced-motion: reduce) {
-  .track { scroll-behavior: auto; }
-  .floatingTag { animation: none; }
-  .navCta, .primary, .audienceRow.compact div { transition: none; }
+/* Foco visível por teclado: o hover não pode ser o único caminho. */
+.navLinks button:focus-visible,
+.navCta:focus-visible,
+.primary:focus-visible,
+.textLink:focus-visible,
+.brand:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 10px;
 }
 
-/* ───────────────────────── RESPONSIVO (altura curta) ───────────────────────── */
-@media (max-height: 720px) {
-  :root { --nav-h: 64px; }
-  .eyebrow { padding: 6px 10px; font-size: 11px; }
-  .heroActions { margin-top: 12px; }
-  .heroVisual { max-height: 38vh; }
-  .miniKicker { margin-top: 12px; }
-}
-
+/* Janela muito baixa no computador: o celular da conversa sai para o texto caber. */
 @media (max-height: 560px) {
   .heroVisual { display: none; }
-  .floatingTag { display: none; }
-  .valueRow, .audienceRow.compact { margin-top: 8px; }
 }
 
 /* ═══════════════════════ LUZ QUE SEGUE O PONTEIRO ═══════════════════════ */
 
-/* Luz de página inteira. Fica atrás do conteúdo e some em telas de toque —
+/* Luz de página inteira. Fica atrás do conteúdo e some em telas de toque:
    `data-on` só é escrito quando existe ponteiro fino. */
 .cursorGlow {
   position: fixed;
@@ -289,58 +489,9 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
 }
 .spot > *:not(.spotBorder):not(.spotGlow) { position: relative; z-index: 1; }
 
-/* ═══════════════════════ REAÇÃO A INTERAÇÃO ═══════════════════════ */
-
-.navLinks button { position: relative; }
-.navLinks button:not(.active):hover { background: #ffffff0a; }
-
-.navCta, .primary {
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 6px 22px -8px rgba(54, 224, 161, .5);
-}
-.navCta:hover, .primary:hover {
-  box-shadow: 0 12px 30px -8px rgba(54, 224, 161, .65);
-}
-.navCta:active, .primary:active { transform: translateY(0); }
-
-/* Brilho que varre o botão ao passar o mouse. */
-.primary::after, .navCta::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 35%, #ffffff5c 50%, transparent 65%);
-  transform: translateX(-120%);
-  transition: transform .6s ease;
-}
-.primary:hover::after, .navCta:hover::after { transform: translateX(120%); }
-
-.textLink .play { transition: border-color .2s ease, color .2s ease, transform .2s ease; }
-.textLink:hover .play { border-color: var(--green); color: var(--green); transform: scale(1.08); }
-
-.audienceRow.compact div { position: relative; }
-.audienceRow.compact div:hover { background: #ffffff05; }
-
-.valueRow > div { transition: transform .25s ease, border-color .25s ease; }
-.valueRow > div:hover { transform: translateY(-3px); border-color: #2f5a4b; }
-
-.stepGrid.compact article { transition: transform .3s ease, border-color .3s ease; }
-.stepGrid.compact article:hover { transform: translateY(-4px); border-color: #2f5a4b; }
-
-/* Foco visível por teclado — o hover não pode ser o único caminho. */
-.navLinks button:focus-visible,
-.navCta:focus-visible,
-.primary:focus-visible,
-.textLink:focus-visible,
-.brand:focus-visible {
-  outline: 2px solid var(--green);
-  outline-offset: 3px;
-  border-radius: 10px;
-}
-
 /* ═══════════════════════ ENTRADA DAS SEÇÕES ═══════════════════════ */
 
-/* O conteúdo entra quando a seção vira a ativa, não no carregamento — assim a
+/* O conteúdo entra quando a seção vira a ativa, não no carregamento: assim a
    animação acompanha a navegação em vez de tocar toda de uma vez. */
 .pane .paneInner > * {
   opacity: 0;
@@ -367,108 +518,14 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
 .pane.isActive .heroGrid > *:nth-child(2) { transition-delay: .12s; }
 
 @media (prefers-reduced-motion: reduce) {
+  .track { scroll-behavior: auto; }
+  .floatingTag { animation: none; }
+  .navCta, .primary, .audienceRow.compact .spot { transition: none; }
   .pane .paneInner > *,
   .heroGrid > * { opacity: 1; transform: none; transition: none; }
   .primary::after, .navCta::after { display: none; }
   .cursorGlow { display: none; }
   .spot > .spotBorder, .spot > .spotGlow { display: none; }
-}
-
-/* ═══════════ AJUSTES PARA OS ÍCONES SVG (no lugar dos glifos) ═══════════ */
-
-.primary svg, .navCta svg, .textLink svg { flex-shrink: 0; }
-.primary, .navCta { gap: 8px; }
-.whatsappBtn { gap: 12px; }
-.whatsappBtn span { margin-left: 0; }
-.play { margin-right: 8px; }
-.play svg { margin-left: 1px; }
-
-.eyebrow { line-height: 1; }
-
-/* Reticências do cabeçalho do chat viram três pontos desenhados. */
-.chatDots { display: flex; gap: 3px; align-items: center; }
-.chatDots i { width: 3px; height: 3px; border-radius: 50%; background: #ffffffb0; display: block; }
-
-.msg small { display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
-.msg small svg { color: #53a3f0; }
-.msg.confirmation small { color: #718079; }
-
-.chatInput .sendBtn { background: #1a8468; color: #fff; }
-.chatInput span { display: grid; place-items: center; }
-.chatInput span:first-child { width: 20px; height: 20px; }
-
-.confirmation > span { display: grid; place-items: center; }
-
-.floatingTag > span { display: grid; place-items: center; color: #0f7a56; }
-
-/* Etapas: o número vira etiqueta com ícone, em vez de um "01" solto. */
-.stepIcon {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: #6f8079;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 1.1px;
-}
-.stepIcon svg { color: var(--green); }
-
-.audienceRow.compact .spot {
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  padding: clamp(10px, 2vh, 16px) 6px;
-  font-size: 10.5px;
-  color: #c1cac6;
-  transition: transform .25s ease, border-color .25s ease, background .25s ease;
-}
-.audienceRow.compact .spot:hover { transform: translateY(-3px); background: #ffffff05; }
-.audienceRow.compact .spot span {
-  display: grid;
-  place-items: center;
-  color: var(--green);
-  margin: 0 auto 8px;
-}
-
-.valueRow .spot {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px 18px;
-  background: #0e1512;
-  min-width: 190px;
-  text-align: left;
-  transition: transform .25s ease, border-color .25s ease;
-}
-.valueRow .spot:hover { transform: translateY(-3px); }
-.valueRow .spot b { display: block; font-size: 13.5px; margin-bottom: 4px; }
-.valueRow .spot small { color: var(--muted); font-size: 11px; line-height: 1.4; }
-
-.stepGrid.compact .spot {
-  background: linear-gradient(150deg, #131b18, #0e1412);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: clamp(14px, 2.5vh, 22px);
-  text-align: left;
-  transition: transform .3s ease, border-color .3s ease;
-}
-.stepGrid.compact .spot:hover { transform: translateY(-4px); }
-.stepGrid.compact .spot h3 { font-size: 14.5px; margin: 6px 0 4px; }
-.stepGrid.compact .spot p { color: var(--muted); font-size: 11.5px; line-height: 1.5; margin: 0; }
-
-.aiOrb span { display: grid; place-items: center; }
-.calendarMini span { display: inline-flex; align-items: center; gap: 5px; }
-.calendarMini svg { color: var(--green); }
-
-/* Painel curto no computador: o conteúdo rola dentro da própria seção em vez
-   de ser cortado. */
-@media (max-height: 780px) {
-  .paneInner {
-    max-height: none;
-    overflow-y: auto;
-    scrollbar-width: none;
-    padding-block: 8px;
-  }
-  .paneInner::-webkit-scrollbar { display: none; }
-  .pane { align-items: flex-start; padding-top: calc(var(--nav-h) + 8px); }
 }
 
 /* ═══════════════════ CELULAR E TABLET: A PÁGINA ROLA PARA BAIXO ═══════════════════ */
@@ -478,7 +535,8 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
    Aqui a trilha vira uma coluna e a página rola para baixo, como o polegar
    espera. A mesma condição está em STACKED_QUERY, no page.tsx: mude nos dois. */
 @media (max-width: 900px), (max-height: 500px) and (hover: none) {
-  :root { --nav-h: 60px; }
+  /* A escala do computador não vale aqui: os tamanhos abaixo são os do celular. */
+  :root { --u: 1px; --nav-h: 60px; }
 
   /* ── Barra do topo ── */
   .nav {
@@ -490,9 +548,8 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
     border-bottom: 1px solid #ffffff0f;
   }
   /* Só a marca gráfica: o nome não cabe junto com as abas. */
-  .brand { font-size: 0; gap: 0; flex-shrink: 0; }
-  .brand .dot { display: none; }
-  .brandMark { width: 30px; height: 30px; font-size: 16px; border-radius: 10px; }
+  .brand { font-size: 20px; flex-shrink: 0; }
+  .brandName { display: none; }
 
   .navLinks {
     position: static;
@@ -546,7 +603,6 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
     width: min(640px, calc(100% - 32px));
     max-height: none;
     overflow: visible;
-    padding-block: 0;
   }
 
   /* ── Tipografia: menor e sem quebras forçadas estourando a largura ── */
@@ -555,15 +611,10 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
     letter-spacing: -1px;
     line-height: 1.1;
     margin: 12px 0 14px;
-    text-wrap: balance;
   }
-  /* Cada parte do título equilibra as próprias linhas. Com o <br> no meio o
-     navegador não equilibra o que vem depois e sobrava uma palavra sozinha. */
   h1 br { display: none; }
-  h2 em { display: block; text-wrap: balance; }
   .kicker { font-size: 11px; }
-  .miniKicker { text-wrap: balance; }
-  .lead, .heroCopy > p { font-size: 15px; line-height: 1.6; text-wrap: pretty; }
+  .lead, .heroCopy > p { font-size: 15px; line-height: 1.6; }
 
   /* ── Início ── */
   .heroGrid { grid-template-columns: 1fr; gap: 36px; text-align: center; }
@@ -572,14 +623,15 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
   .heroActions { flex-direction: column; justify-content: center; gap: 16px; margin-top: 22px; }
   .heroActions .primary { font-size: 15px; padding: 14px 22px; }
 
-  /* O visual entra no fluxo: antes tinha altura travada e o cartão vazava
-     por cima dos botões. */
-  .heroVisual { display: flex; height: auto; max-height: none; margin: 0; padding-bottom: 26px; }
+  /* O visual entra no fluxo, com a altura do próprio cartão. */
+  .heroVisual { display: flex; height: auto; padding-bottom: 26px; }
+  .heroVisual:before { width: 70%; }
   .orbit1 { width: 100%; }
-  .whatsappCard { text-align: left; }
+  .orbit2 { width: 76%; }
+  .whatsappCard { font-size: 10px; width: min(32em, 86vw); }
   /* O aviso sai de cima da conversa e vira um toast sobre o campo de texto. */
   .floatingTag {
-    display: flex;
+    font-size: 10.5px;
     top: auto;
     right: auto;
     bottom: 4px;
@@ -587,31 +639,26 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
     translate: -50% 0;
     white-space: nowrap;
   }
-  .floatingTag b { font-size: 11px; }
-  .floatingTag small { font-size: 9px; }
 
   /* ── O que é ── */
   .miniKicker { margin-top: 30px; }
-  .audienceRow.compact { grid-template-columns: repeat(3, 1fr); width: 100%; margin-top: 12px; }
+  .audienceRow.compact { grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
   .audienceRow.compact .spot { font-size: 12px; padding: 14px 6px; }
 
   /* ── Quem somos ── */
   .valueRow { flex-direction: column; align-items: stretch; width: 100%; gap: 10px; margin-top: 26px; }
-  .valueRow .spot { min-width: 0; }
+  .valueRow .spot { min-width: 0; padding: 16px 18px; }
   .valueRow .spot b { font-size: 15px; }
   .valueRow .spot small { font-size: 13px; }
 
   /* ── Como funciona ── */
-  .stepGrid.compact { grid-template-columns: 1fr; gap: 12px; width: 100%; max-width: 480px; margin-top: 26px; }
+  .stepGrid.compact { grid-template-columns: 1fr; gap: 12px; max-width: 480px; margin-top: 26px; }
   .stepGrid.compact .spot { padding: 18px 20px; }
-  .stepGrid.compact .spot h3 { font-size: 16px; margin: 8px 0 4px; }
-  .stepGrid.compact .spot p { font-size: 13.5px; text-wrap: pretty; }
-  .phoneBubble { font-size: 12px; }
-  .calendarMini span { font-size: 11px; }
+  .stepGrid.compact .spot h3 { font-size: 16px; }
+  .stepGrid.compact .spot p { font-size: 13.5px; }
 
-  /* ── Contato: a conversa de exemplo já aparece no Início ── */
+  /* ── Contato ── */
   .contatoRow { width: 100%; margin-top: 26px; }
-  .contatoRow .whatsappCard { display: none; }
   .whatsappBtn { width: 100%; max-width: 360px; justify-content: center; font-size: 16px; padding: 16px 24px; }
 
   /* A entrada de cada seção dispara quando ela aparece na tela e não volta

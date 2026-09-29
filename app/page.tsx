@@ -214,7 +214,10 @@ export default function Home() {
           }}
           aria-label="Convexa, voltar ao início"
         >
-          <span className="brandMark">C</span>convexa<span className="dot">.</span>
+          <span className="brandMark">C</span>
+          <span className="brandName">
+            convexa<span className="dot">.</span>
+          </span>
         </a>
 
         <div className="navLinks">
@@ -409,7 +412,6 @@ export default function Home() {
               na prática, direto na conversa. Sem formulário para preencher.
             </p>
             <div className="contatoRow">
-              <WhatsAppMock compact />
               <a
                 className="primary whatsappBtn"
                 href={whatsappLink()}
@@ -426,9 +428,9 @@ export default function Home() {
   );
 }
 
-function WhatsAppMock({ compact = false }: { compact?: boolean }) {
+function WhatsAppMock() {
   return (
-    <div className={`whatsappCard${compact ? " compact" : ""}`}>
+    <div className="whatsappCard">
       <div className="chatHead">
         <div className="botAvatar">C</div>
         <div>

@@ -39,10 +39,16 @@ Cinco seções, cada uma ocupando a tela inteira:
 | 2 | O que é | Explica o produto em uma frase |
 | 3 | Quem somos | Time e história — **texto ainda provisório** |
 | 4 | Como funciona | Os três passos do agendamento |
-| 5 | Contato | Mockup de conversa + botão do WhatsApp |
+| 5 | Contato | Chamada final + botão do WhatsApp |
 
 Funciona com clique nos indicadores, roda do mouse e setas do teclado. Quem faz
 isso é o CSS (`scroll-snap-type: x mandatory`), não JavaScript simulando gesto.
+
+**Tamanhos no computador.** Tudo é medido pela variável `--u` do
+`app/globals.css`, que vale 1px numa tela de 1440x900 e acompanha a menor das
+duas proporções da janela. O conteúdo cresce em monitor grande e encolhe em
+notebook sem passar da altura da tela. Para mudar um tamanho, mude o número
+dentro do `calc(… * var(--u))`, não troque por px fixo.
 
 **No celular e no tablet (até 900px de largura) a página rola para baixo.** O
 conteúdo de uma seção não cabe numa tela de celular, e deslizar para o lado e
