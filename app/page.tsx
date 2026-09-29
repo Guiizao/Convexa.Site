@@ -28,6 +28,23 @@ const NAV_ITEMS = SECTIONS.slice(0, -1);
 const SECTION_COUNT = SECTIONS.length;
 const CONTACT = SECTION_COUNT - 1;
 
+// Celular e tablet: as seções empilham e a página rola para baixo, porque o
+// conteúdo de uma seção não cabe numa tela só. Precisa bater com a media query
+// "CELULAR E TABLET" do globals.css.
+const STACKED_QUERY = "(max-width: 900px), (max-height: 500px) and (hover: none)";
+const isStacked = () => window.matchMedia(STACKED_QUERY).matches;
+
+/** No modo empilhado, a seção ativa é a que cruzou um terço da tela. */
+function stackedIndex(track: HTMLElement): number {
+  if (track.scrollTop + track.clientHeight >= track.scrollHeight - 4) return SECTION_COUNT - 1;
+  const probe = track.scrollTop + track.clientHeight * 0.35;
+  let index = 0;
+  Array.from(track.children).forEach((section, i) => {
+    if ((section as HTMLElement).offsetTop <= probe) index = i;
+  });
+  return index;
+}
+
 const audiences = [
   { label: "Barbearias", Icon: Scissors },
   { label: "Salões", Icon: Sparkle },
@@ -39,7 +56,10 @@ const audiences = [
 
 export default function Home() {
   const trackRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set([0]));
   const wheelLock = useRef(false);
   const wheelAccum = useRef(0);
 
@@ -47,6 +67,14 @@ export default function Home() {
     const clamped = Math.max(0, Math.min(SECTION_COUNT - 1, index));
     const track = trackRef.current;
     if (!track) return;
+    if (isStacked()) {
+      // Para no começo do conteúdo, com folga abaixo da barra fixa do topo.
+      const inner = track.children[clamped]?.firstElementChild as HTMLElement | null;
+      const navHeight = navRef.current?.offsetHeight ?? 0;
+      const top = clamped === 0 || !inner ? 0 : inner.offsetTop - navHeight - 20;
+      track.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      return;
+    }
     track.scrollTo({ left: clamped * track.clientWidth, behavior: "smooth" });
   }, []);
 
@@ -59,17 +87,74 @@ export default function Home() {
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const width = track.clientWidth || 1;
-        const index = Math.round(track.scrollLeft / width);
+        const index = isStacked()
+          ? stackedIndex(track)
+          : Math.round(track.scrollLeft / (track.clientWidth || 1));
         setActive((prev) => (prev === index ? prev : index));
       });
     };
+    const layout = window.matchMedia(STACKED_QUERY);
     track.addEventListener("scroll", onScroll, { passive: true });
+    layout.addEventListener("change", onScroll);
     return () => {
       track.removeEventListener("scroll", onScroll);
+      layout.removeEventListener("change", onScroll);
       cancelAnimationFrame(raf);
     };
   }, []);
+
+  // Marca as seções que já apareceram. No modo empilhado a animação de entrada
+  // depende disso: a seção que aparece embaixo da ativa não pode ficar vazia.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const sections = Array.from(track.children);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const hits = entries
+          .filter((entry) => entry.isIntersecting)
+          .map((entry) => sections.indexOf(entry.target));
+        if (!hits.length) return;
+        setSeen((prev) => {
+          if (hits.every((i) => prev.has(i))) return prev;
+          const next = new Set(prev);
+          hits.forEach((i) => next.add(i));
+          return next;
+        });
+      },
+      { root: track, threshold: 0.12 },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
+  // No celular as abas não cabem e a caixa rola de lado. O fade aparece só na
+  // borda onde ainda tem aba escondida, para o texto não parecer cortado.
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    if (!tabs) return;
+    const update = () => {
+      const max = tabs.scrollWidth - tabs.clientWidth;
+      tabs.dataset.fadeStart = tabs.scrollLeft > 2 ? "1" : "0";
+      tabs.dataset.fadeEnd = tabs.scrollLeft < max - 2 ? "1" : "0";
+    };
+    update();
+    tabs.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      tabs.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  // A aba ativa desliza para o meio da caixa quando a seção muda.
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    const tab = tabs?.children[active] as HTMLElement | undefined;
+    if (!tabs || !tab || tabs.scrollWidth <= tabs.clientWidth) return;
+    const left = tab.offsetLeft - (tabs.clientWidth - tab.offsetWidth) / 2;
+    tabs.scrollTo({ left, behavior: "smooth" });
+  }, [active]);
 
   // Roda do mouse é vertical por natureza — traduz o gesto em navegação
   // horizontal, uma seção por vez (trackpads já mandam deltaX nativo).
@@ -77,6 +162,7 @@ export default function Home() {
     const track = trackRef.current;
     if (!track) return;
     const onWheel = (event: WheelEvent) => {
+      if (isStacked()) return;
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
       event.preventDefault();
       if (wheelLock.current) return;
@@ -100,6 +186,7 @@ export default function Home() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (isStacked()) return;
       if (event.key === "ArrowRight" || event.key === "ArrowDown") goTo(active + 1);
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") goTo(active - 1);
       if (event.key === "Home") goTo(0);
@@ -109,14 +196,15 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKey);
   }, [active, goTo]);
 
-  const pane = (index: number) => `pane${active === index ? " isActive" : ""}`;
+  const pane = (index: number) =>
+    `pane${active === index ? " isActive" : ""}${seen.has(index) ? " isSeen" : ""}`;
 
   return (
     <main className="paged">
       <CircuitBackground />
       <CursorGlow />
 
-      <nav className="nav" aria-label="Navegação principal">
+      <nav className="nav" ref={navRef} aria-label="Navegação principal">
         <a
           className="brand"
           href="#inicio"
@@ -124,24 +212,26 @@ export default function Home() {
             e.preventDefault();
             goTo(0);
           }}
-          aria-label="Convexa - início"
+          aria-label="Convexa, voltar ao início"
         >
           <span className="brandMark">C</span>convexa<span className="dot">.</span>
         </a>
 
-        <div className="navLinks" role="tablist" aria-label="Seções">
-          {NAV_ITEMS.map((item, i) => (
-            <button
-              key={item.id}
-              role="tab"
-              type="button"
-              aria-selected={active === i}
-              className={active === i ? "active" : ""}
-              onClick={() => goTo(i)}
-            >
-              {item.label}
-            </button>
-          ))}
+        <div className="navLinks">
+          <div className="navScroll" ref={tabsRef} role="tablist" aria-label="Seções">
+            {NAV_ITEMS.map((item, i) => (
+              <button
+                key={item.id}
+                role="tab"
+                type="button"
+                aria-selected={active === i}
+                className={active === i ? "active" : ""}
+                onClick={() => goTo(i)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <button className="navCta" type="button" onClick={() => goTo(CONTACT)}>
@@ -160,16 +250,17 @@ export default function Home() {
           <div className="paneInner heroGrid">
             <div className="heroCopy">
               <div className="eyebrow">
-                <span className="pulse" /> Atendimento inteligente via WhatsApp
+                <span className="pulse" /> Agendamento automático no WhatsApp
               </div>
               <h1>
-                Enquanto você
+                Enquanto você{" "}
                 <br />
                 trabalha, o <em>Convexa atende.</em>
               </h1>
               <p>
-                Uma IA humanizada conversa com seus clientes, encontra o melhor
-                horário e organiza tudo no seu painel. Simples assim.
+                Seu cliente manda mensagem e recebe resposta na hora, com os
+                horários livres. O agendamento cai direto no seu painel, sem você
+                parar o que está fazendo.
               </p>
               <div className="heroActions">
                 <button className="primary" type="button" onClick={() => goTo(CONTACT)}>
@@ -205,14 +296,15 @@ export default function Home() {
           <div className="paneInner centered">
             <span className="kicker">O QUE É</span>
             <h2>
-              Um atendente que nunca perde
+              Seu WhatsApp responde
               <br />
-              <em>um cliente por WhatsApp.</em>
+              <em>mesmo quando você não pode.</em>
             </h2>
             <p className="lead">
-              O Convexa é a IA que conversa com quem já usa o WhatsApp do seu
-              negócio: entende pedidos, oferece horários e confirma o
-              agendamento — sem fila de espera e sem mensagem esquecida.
+              O Convexa é um assistente com IA que atende no número do seu
+              negócio. Ele entende o que o cliente quer, oferece os horários
+              livres e confirma o agendamento. Ninguém fica esperando e nenhuma
+              mensagem cai no esquecimento.
             </p>
             <span className="miniKicker">FEITO PARA NEGÓCIOS COM HORA MARCADA</span>
             <div className="audienceRow compact">
@@ -237,16 +329,16 @@ export default function Home() {
               <em>de atender bem.</em>
             </h2>
             <p className="lead">
-              Somos uma equipe focada em tirar a tarefa repetitiva da mão de
-              quem empreende sozinho ou com um time pequeno. Sem call center,
-              sem sistema complicado — só o WhatsApp que seu cliente já usa,
-              com uma IA cuidando dos detalhes por trás.
+              Nosso foco é tirar o trabalho repetitivo das mãos de quem toca o
+              negócio sozinho ou com uma equipe pequena. Nada de central de
+              atendimento ou sistema complicado. Seu cliente continua no
+              WhatsApp que já usa, e a IA cuida dos detalhes.
             </p>
             <div className="valueRow">
               {[
-                ["Simplicidade", "Sem app novo pro cliente aprender"],
-                ["IA com toque humano", "Conversa natural, não script robótico"],
-                ["No seu ritmo", "O dono continua no controle da agenda"],
+                ["Simples de usar", "Seu cliente não precisa baixar nada"],
+                ["Conversa de gente", "Respostas naturais, sem cara de robô"],
+                ["Você no controle", "A agenda continua sendo sua"],
               ].map(([title, desc]) => (
                 <Spotlight key={title}>
                   <b>{title}</b>
@@ -263,7 +355,7 @@ export default function Home() {
             <h2>
               Do &ldquo;oi&rdquo; ao horário marcado.
               <br />
-              <em>Sem você tocar no celular.</em>
+              <em>Sem você pegar no celular.</em>
             </h2>
             <div className="stepGrid compact">
               <Spotlight as="article">
@@ -271,8 +363,8 @@ export default function Home() {
                   <Chat size={15} /> ETAPA 01
                 </span>
                 <div className="phoneBubble">&ldquo;Oi, tem horário hoje?&rdquo;</div>
-                <h3>Seu cliente chama</h3>
-                <p>Ele manda uma mensagem no WhatsApp do seu negócio, como sempre fez.</p>
+                <h3>O cliente chama</h3>
+                <p>Ele manda mensagem no WhatsApp do seu negócio, do jeito que já faz hoje.</p>
               </Spotlight>
               <Spotlight as="article">
                 <span className="stepIcon">
@@ -284,8 +376,8 @@ export default function Home() {
                     <Sparkle size={12} />
                   </span>
                 </div>
-                <h3>A IA conversa</h3>
-                <p>Entende o pedido, oferece serviços e encontra os melhores horários.</p>
+                <h3>O Convexa responde</h3>
+                <p>Entende o que ele precisa, apresenta os serviços e oferece os horários livres.</p>
               </Spotlight>
               <Spotlight as="article">
                 <span className="stepIcon">
@@ -297,8 +389,8 @@ export default function Home() {
                     18:30 · Carlos <Check size={11} />
                   </span>
                 </div>
-                <h3>A agenda se organiza</h3>
-                <p>O compromisso aparece no seu painel, pronto e confirmado.</p>
+                <h3>O horário fica marcado</h3>
+                <p>O agendamento aparece no seu painel, já confirmado com o cliente.</p>
               </Spotlight>
             </div>
           </div>
@@ -306,15 +398,15 @@ export default function Home() {
 
         <section className={`${pane(4)} paneContato`} id="contato" aria-label="Contato">
           <div className="paneInner centered">
-            <span className="kicker">FALE AGORA</span>
+            <span className="kicker">CONTATO</span>
             <h2>
               Fale com a gente
               <br />
               <em>no WhatsApp.</em>
             </h2>
             <p className="lead">
-              Conte pra gente sobre o seu negócio e veja o Convexa funcionando
-              de verdade — sem formulário, direto na conversa.
+              Conte um pouco sobre o seu negócio e veja o Convexa funcionando
+              na prática, direto na conversa. Sem formulário para preencher.
             </p>
             <div className="contatoRow">
               <WhatsAppMock compact />
@@ -359,13 +451,12 @@ function WhatsAppMock({ compact = false }: { compact?: boolean }) {
           </small>
         </div>
         <div className="msg bot">
-          Oi, Carlos! Tenho sim. Encontrei dois horários:
-          <br />
-          <b>18:30</b> ou <b>19:15</b>. Qual fica melhor?
+          Oi, Carlos! Tenho sim: amanhã às <b>18:30</b> ou às <b>19:15</b>.
+          Qual fica melhor pra você?
           <small>18:42</small>
         </div>
         <div className="msg client short">
-          18:30 perfeito!
+          18:30, perfeito!
           <small>
             18:43 <CheckDouble />
           </small>
@@ -377,7 +468,7 @@ function WhatsAppMock({ compact = false }: { compact?: boolean }) {
           <div>
             <b>Agendamento confirmado!</b>
             <br />
-            Corte de cabelo · Amanhã, 18:30
+            Corte de cabelo · amanhã, 18:30
           </div>
           <small>18:43</small>
         </div>

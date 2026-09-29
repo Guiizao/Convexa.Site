@@ -41,9 +41,16 @@ Cinco seções, cada uma ocupando a tela inteira:
 | 4 | Como funciona | Os três passos do agendamento |
 | 5 | Contato | Mockup de conversa + botão do WhatsApp |
 
-Funciona com clique nos indicadores, roda do mouse, setas do teclado e swipe no
-celular. Quem faz isso é o CSS (`scroll-snap-type: x mandatory`), não JavaScript
-simulando gesto — por isso é fluido no celular.
+Funciona com clique nos indicadores, roda do mouse e setas do teclado. Quem faz
+isso é o CSS (`scroll-snap-type: x mandatory`), não JavaScript simulando gesto.
+
+**No celular e no tablet (até 900px de largura) a página rola para baixo.** O
+conteúdo de uma seção não cabe numa tela de celular, e deslizar para o lado e
+ainda rolar dentro de cada seção deixava tudo cortado. As abas do topo viram uma
+faixa que rola de lado, com fade na borda onde ainda tem aba escondida, e a aba
+ativa acompanha a rolagem. A condição do corte fica em dois lugares que precisam
+bater: `STACKED_QUERY` no `app/page.tsx` e o bloco "CELULAR E TABLET" do
+`app/globals.css`.
 
 ---
 
